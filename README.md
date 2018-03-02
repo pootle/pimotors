@@ -25,8 +25,7 @@ This all runs on Raspberry Pi 2x and 3x as well as Pi Zero
 
 It runs on raspbian lite (i.e. the command line only version)
 
-1 enable i2c
-1 if using the adafruit dc and stepper motor HAT, install the adafruit libraries for the HAT - https://learn.adafruit.com/adafruit-dc-and-stepper-motor-hat-for-raspberry-pi/installing-software
-
-1 clone this repository
-1 in the folder: **python3 main.py**
+* enable i2c
+* if using the adafruit dc and stepper motor HAT, [install the adafruit libraries for the HAT](https://learn.adafruit.com/adafruit-dc-and-stepper-motor-hat-for-raspberry-pi/installing-software).
+* clone this repository
+* in the folder: **python3 main.py**
