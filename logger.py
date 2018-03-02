@@ -69,7 +69,8 @@ class logger():
                 else:
                     logf=logger.logfiles[le['filename']]
                 if 'format' in le:
-                    logf.write((le['format'] if 'noheader' in le else logger.logheader+le['format']).format(name=self.name,H=int(th), M=int(tm),S$
+                    logf.write((le['format'] if 'noheader' in le else logger.logheader+le['format']).format(name=self.name,H=int(th), M=int(tm),S=
+ts, **params))
                 elif 'asdict' in le:
                     logf.write(params.__repr__())
                 else:
