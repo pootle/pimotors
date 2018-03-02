@@ -70,7 +70,8 @@ def1=(
     {'name':'mdutyl' , 'fclass':  df    ,'lineno': 8,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'duty cycle'},
     {'name':'minvl'  , 'fclass':  df    ,'lineno': 9,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'reverse'},
     {'name':'mposnl' , 'fclass':  df    ,'lineno':10,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'position','atts': 'h'},
-
+    {'name':'mrpml'  , 'fclass':  df    ,'lineno':11,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'position','atts': 'h'},
+    
     {'name':'mnameleft' , 'fclass':  df    ,'lineno': 4,'colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':'', 'atts': 'h'},
     {'name':'mtypeleft' , 'fclass':  df    ,'lineno': 5,'colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':'', 'atts': 'h'},
     {'name':'mdrvtleft' , 'fclass':  df    ,'lineno': 6,'colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':'', 'atts': 'h'},
@@ -82,7 +83,8 @@ def1=(
                 'selectmap': ((False,'forward'),(True,'reverse')),
                 'valuecallback':updatemotor, 'cbparams': {'mname':'left', 'matt': 'setInvert'}},
     {'name':'mposnleft' , 'fclass':  df    ,'lineno':10,'colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
-    
+    {'name':'mrpmleft'  , 'fclass':  df    ,'lineno':11,'colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
+
     {'name':'mnameright' , 'fclass':  df    ,'lineno': 4,'colno':33, 'style': 'output', 'format': '{:^15.15s}', 'value':'', 'atts': 'h'},
     {'name':'mtyperight' , 'fclass':  df    ,'lineno': 5,'colno':33, 'style': 'output', 'format': '{:^15.15s}', 'value':'', 'atts': 'h'},
     {'name':'mdrvtright' , 'fclass':  df    ,'lineno': 6,'colno':33, 'style': 'output', 'format': '{:^15.15s}', 'value':'', 'atts': 'h'},
@@ -94,6 +96,7 @@ def1=(
                 'selectmap': ((False,'forward'),(True,'reverse')),
                 'valuecallback':updatemotor, 'cbparams': {'mname':'right', 'matt': 'setInvert'}},
     {'name':'mposnright' , 'fclass':  df    ,'lineno':10,'colno':33, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
+    {'name':'mrpmright'  , 'fclass':  df    ,'lineno':11,'colno':33, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
 
     {'name':'inlab'  , 'fclass':  df    ,'lineno':12,'colno':0 , 'style': 'label', 'format': '{:>20s}:', 'value':''},
     {'name':'inval'  , 'fclass':  df    ,'lineno':12,'colno':22, 'style': 'nonactinp', 'format': None, 'value':''}
@@ -191,6 +194,8 @@ class tester():
                 self.dp.setFieldAtt('mposnl', 'h', False)
                 self.dp.setFieldAtt('mposn%s' % mname, 'h', False)
                 self.dp.updateFieldValue('mposn%s' %mname, m.lastposition())
+                self.dp.setFieldAtt('mrpml', 'h', False)
+                self.dp.setFieldAtt('mrpm%s' % mname, 'h', False)
 
     def tickloop(self, interval):
         self.nexttick = time.time()+interval
@@ -220,7 +225,10 @@ class tester():
                 for m in self.motors.values():
                     pos=m.lastposition()
                     if not pos is None:
-                        self.dp.updateFieldValue('mposn%s' %m.name, pos)
+                        self.dp.updateFieldValue('mposn%s' % m.name, pos)
+                    mrpm=m.lastrpm()
+                    if not mrpm is None:
+                        self.dp.updateFieldValue('mrpm%s' % m.name, mrpm)
             self.dp.show()
         self.keymon.close()
         if not self.piggy is None:
@@ -239,5 +247,5 @@ class tester():
         pass
 
 if __name__ == '__main__':
-    m=tester(motordefdchat)
+    m=tester(motordef2)
     m.tickloop(interval=.05)

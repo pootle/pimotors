@@ -41,6 +41,7 @@ class quadencoder():
         self.lastmotorpos=initialpos
         self.prevmotorpos=initialpos
         self.lasttallydiff=0
+        self.lasttallyinterval=0
         self.isforwardfunc=isforward
 
     def setforwardfunc(self,f):
@@ -70,7 +71,9 @@ class quadencoder():
         returns: 2-tuple, timestamp for the last reading and the change in motorpos in revs
         """
         tallyr=sum([s.tally() for s in self.scb])
-        self.lasttallytime=time.time()
+        tnow=time.time()
+        self.lasttallyinterval=tnow-self.lasttallytime
+        self.lasttallytime=tnow
         tallydiff=tallyr-self.lasttallyread
         self.prevmotorpos=self.lastmotorpos
         if not self.isforwardfunc():

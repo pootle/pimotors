@@ -65,6 +65,11 @@ class motor(logger.logger):
     def lastposition(self):
         return None if self.motorpos is None else self.motorpos.lastmotorpos
 
+    def lastrpm(self):
+        if self.motorpos is None or self.motorpos.lasttallyinterval == 0:
+            return None
+        return 60*(self.motorpos.lastmotorpos-self.motorpos.prevmotorpos)/self.motorpos.lasttallyinterval
+
     def setInvert(self, invert):
         """
         sets the flag that controls which way the motor turns for +ve values of dutycycle.
