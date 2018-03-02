@@ -3,6 +3,27 @@
 provides the low level driver for pwm dutycycle using an adafruit dc motor HAT and the adafruit library
 """
 from Adafruit_MotorHAT import Adafruit_MotorHAT as adamh
+import atexit
+
+class dcmotorHatExtra(adamh):
+    """
+    small extension to the adafruit class to remember the frequency we last set.
+    """
+    def __init__(self, freq, *args, **kwargs):
+        super().__init__(*args, freq=freq, **kwargs)
+        self.pootlespwmfrequ=freq
+        atexit.register(self._cleanexit)
+
+    def setPWMFreq(self, freq):
+        if self.pootlespwmfrequ==freq:
+            return
+        else:
+            self._pwm.setPWMFreq(freq)
+            self.pootlespwmfrequ=frequency
+
+    def _cleanexit(self):
+        for mno in range(1,4):
+            self.getMotor(mno).run(adamh.RELEASE)
 
 class dc_m_hat():
     """
@@ -47,9 +68,7 @@ class dc_m_hat():
             self.invert=iv
             if not self.lastdc is None:
                 self.lastdc = -self.lastdc
-            return True
-        else:
-            return False
+        return iv
 
     def setDC(self, dutycycle):
         """
@@ -59,21 +78,27 @@ class dc_m_hat():
         The rpm resulting from different values of duty cycle will follow an approximately asymptotic curve after some 
         wibbly bits at low values.
         
-        First checks the new value is different to the last value, and the value is valid.
+        First checks the new value is different to the last value, and clamps the value to the valid range.
+        
+        returns the value actually set
         """
         if dutycycle == self.lastdc:
-            return
-        if -dc_m_hat.RANGE<=dutycycle<=dc_m_hat.RANGE and isinstance(dutycycle, int):
-            if dutycycle==0:
-                self.mot.run(adamh.RELEASE)
-            forward = dutycycle > 0
-            newval = int(abs(dutycycle))
-            self.mot.run(adamh.FORWARD if forward else adamh.BACKWARD)
-            self.mot.setSpeed(newval)
-            self.lastdc=dutycycle
-        else:
-            self.stop()
-            raise ValueError('%s is not valid - should be in range (-255, +255)' % str(dutycycle))
+            return self.lastdc
+        if not -dc_m_hat.RANGE<=dutycycle<=dc_m_hat.RANGE:
+            if dutycycle < -dc_m_hat.RANGE:
+                dutycycle=-dc_m_hat.RANGE
+            elif dutycycle > dc_m_hat.RANGE:
+                dutycycle=dc_m_hat.RANGE
+        if dutycycle==0:
+            self.mot.run(adamh.RELEASE)
+        forward = dutycycle > 0
+        if self.invert:
+            forward=not forward
+        newval = int(abs(dutycycle))
+        self.mot.run(adamh.FORWARD if forward else adamh.BACKWARD)
+        self.mot.setSpeed(newval)
+        self.lastdc=dutycycle
+        return self.lastdc
 
     def setFrequency(self, frequency):
         """
@@ -84,6 +109,7 @@ class dc_m_hat():
         if not hasattr(self.mhat, 'pootlespwmfrequ') or self.mhat.pootlespwmfrequ != frequency:
             self.mhat._pwm.setPWMFreq(frequency)
             self.mhat.pootlespwmfrequ=frequency
+        return frequency
 
     def stop(self):
         """
