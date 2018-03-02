@@ -5,11 +5,18 @@ Assuming your project needs a raspberry pi or similarly capable computer, but is
 
 A Raspberry pi is quite fast enough to control and monitor motors running up to around 10000 rpm. This set of classes provides the basic functioanlity to do this with the following modules:
 
-dc_adafruit_dchat: dc motor connected via an adafruit dc and stepper motor hat
+* dc_adafruit_dchat: dc motor connected via an adafruit dc and stepper motor hat
 
-dc_h_bridge_pigpio: dc motor connected via an h-bridge ( such as a pimoroni explorer phat) directly controlled via gpio pins and using pigpio to provide control of duty cycle and pulse frequency. 
+* dc_h_bridge_pigpio: dc motor connected via an h-bridge ( such as a pimoroni explorer phat) directly controlled via gpio pins and using pigpio to provide control of duty cycle and pulse frequency. 
 
-quadencoder: a quadrature shaft encoder, such as the Pololu Magnetic Encoder Pair Kit for Micro Metal Gearmotors. pigpio is used purely to count the pulses and the quadencoder class polls the counter (typically around 20 times per second) to kepp track of the motor.
+* quadencoder: a quadrature shaft encoder, such as the Pololu Magnetic Encoder Pair Kit for Micro Metal Gearmotors. pigpio is used purely to count the pulses and the quadencoder class polls the counter (typically around 20 times per second) to kepp track of the motor.
 
-dcmotorbasic: A basic motor control, which uses helper classes to drive the motor and optionally track the sensors. It also has functionality to provide linear control of motor speed (duty cycle control is typically close to asymptotic which is not friendly!
+* dcmotorbasic: A basic motor control, which uses helper classes to drive the motor and optionally track the sensors. It also has functionality to provide linear control of motor speed (duty cycle control is typically close to asymptotic which is not friendly!
 
+* logger: a basic log facility for debug and writing trace files that can easily be analysed later
+
+* keyboardinp: simple class to provide asyncronous keyboard input for the console (text) based form system (textdisp)
+
+* textdisp: a basic form handler that will run over ssh 
+
+* main: a utility to test motors using all the other classes here. Runs on the Raspberry pi and can be access via ssh
