@@ -28,72 +28,71 @@ class dc_h_bridge():
         """
         if isinstance(range, int) and 10<=range<=10000:
             self.piggy=piggy
-            self.invert=invert==True
+            self.isinverted=invert==True
             self.pinf=pinf
             self.pinb=pinb
             self.lastHz = None
             self.lastdc=None
-            self.setFrequency(frequency)
+            self.frequency(frequency)
             self.range=range
             self.piggy.set_PWM_range(self.pinf, range)
             self.piggy.set_PWM_range(self.pinb, range)
         else:
             raise ValueError('%s is not valid - should be integer in range (10..10000)',str(range))
 
-    def setInvert(self, invert):
+    def invert(self, invert):
         """
-        sets the flag that controls which way the motor turns for +ve values of dutycycle.
+        returns and optionally sets the flag that controls which way the motor turns for +ve values of dutycycle.
         
         This happens at the lowest level so most functionality uses this transparently.
         
-        invert  : sets the invert flag
+        invert  : None invert flag unchanged, True / False sets the invert flag
         
-        returns : True if the invert flag changed 
+        returns : True if the invert flag is set
         """ 
-        iv=invert==True
-        if iv != self.invert:
-            self.invert=iv
+        if not invert is None and (invert==True) != self.isinverted:
+            self.isinverted=invert==True
             if not self.lastdc is None:
                 self.lastdc = -self.lastdc
-            return True
-        else:
-            return False
+        return self.isinverted
 
-    def setDC(self, dutycycle):
+    def DC(self, dutycycle):
         """
-        The most basic way to drive the motor. Sets the motor's duty cycle to the given value.
+        The most basic way to drive the motor. returns and optioanlly sets the motor's duty cycle to the given value.
         
-        This is the ONLY method that calls set_PWM_dutycycle so this method also handles the invert flag
+        This is the ONLY method that calls set_PWM_dutycycle so this method also handles the inverted flag
         The rpm resulting from different values of duty cycle will follow an approximately asymptotic curve after some 
         wibbly bits at low values.
         
         First checks the new value is different to the last value, and the value is valid.
         """
-        if dutycycle == self.lastdc:
-            return
+        if dutycycle is None or dutycycle == self.lastdc:
+            return self.lastdc
         if dutycycle < -self.range:
             dutycycle=-self.range
         elif dutycycle > self.range:
             dutycycle=self.range
         forward = dutycycle > 0
         newval = int(abs(dutycycle))
-        pinx, piny = (self.pinb, self.pinf) if forward == self.invert else (self.pinf, self.pinb)
+        pinx, piny = (self.pinb, self.pinf) if forward == self.isinverted else (self.pinf, self.pinb)
         self.piggy.set_PWM_dutycycle(pinx,0)
         self.piggy.set_PWM_dutycycle(piny,newval)
         self.lastdc=dutycycle
         return dutycycle
 
-    def setFrequency(self, frequency):
+    def frequency(self, frequency):
         """
         changes the frequency to be used for this motor. For low revs, low frequencies work better than higher
         frequencies, albeit this can make the motion a bit jerky.
         
-        frequency to use - See http://abyz.me.uk/rpi/pigpio/python.html#set_PWM_frequency for further details
+        frequency: None or the frequency in Hz (See http://abyz.me.uk/rpi/pigpio/python.html#set_PWM_frequency for further details)
+                    if None the current frequency is returned with no change to the frequency
         
         returns the actual frequency set (see link above...)
         """
-        if isinstance(frequency, int):
-            if frequency != self.lastHz:
+        
+        if isinstance(frequency, int) or frequency is None:
+            if not frequency is None and frequency != self.lastHz:
                 self.lastHz=frequency
                 self.piggy.set_PWM_frequency(self.pinf, self.lastHz)
                 self.piggy.set_PWM_frequency(self.pinb, self.lastHz)
@@ -106,7 +105,13 @@ class dc_h_bridge():
         """
         stops (removes power) from the motor by setting the dutycycle to 0 on both pins.
         """
-        self.setDC(0)
+        self.DC(0)
+
+    def close(self):
+        """
+        takes appropriate action to turn-off / shut down the motor
+        """
+        self.DC(0)
 
     def odef(self):
-        return {'driver': type(self).__name__, 'pinf': self.pinf, 'pinb': self.pinb, 'frequency': self.lastHz, 'invert': self.invert}
+        return {'driver': type(self).__name__, 'pinf': self.pinf, 'pinb': self.pinb, 'frequency': self.lastHz, 'invert': self.isinverted}

@@ -54,6 +54,7 @@ class motor(logger.logger):
             self.maxspeed = self.speedtabf[-1][0]
         self.speedtabb=None if speedtable is None else speedtable['b']
         self.minspeed = None if self.speedtabb is None else -self.speedtabb[-1][0]
+        self.targetrpm=0
 
     def close(self):
         self.motorpos.close()
@@ -62,38 +63,39 @@ class motor(logger.logger):
     def isforward(self):
         return self.motorforward
 
-    def lastposition(self):
+    def lastPosition(self):
         return None if self.motorpos is None else self.motorpos.lastmotorpos
 
-    def lastrpm(self):
+    def lastRPM(self):
+        """
+        returns the actual rpm of the motor if the motor has an appropriate sensor (else None)
+        """
         if self.motorpos is None or self.motorpos.lasttallyinterval == 0:
             return None
         return 60*(self.motorpos.lastmotorpos-self.motorpos.prevmotorpos)/self.motorpos.lasttallyinterval
 
-    def setInvert(self, invert):
+    def invert(self, invert):
         """
-        sets the flag that controls which way the motor turns for +ve values of dutycycle.
+        returns and optionally sets the flag that controls which way the motor turns for +ve values of dutycycle.
         
         This happens at the lowest level so most functionality uses this transparently.
         """ 
-        changediv=self.mdrive.setInvert(invert==True)
-        if changediv:
-            self.log(ltype='phys', setting='invert', newval=invert==True)
+        oldiv = self.mdrive.invert(None)
+        newiv=self.mdrive.invert(invert)
+        if newiv != oldiv:
+            self.log(ltype='phys', setting='invert', newval=newiv)
             x=self.speedtabf
             self.speedtabf = self.speedtabb
             self.speedtabb = x
-        return invert==True
-
-    def getInvert(self):
-        return self.mdrive.invert
+        return newiv
 
     def stop(self):
         """
         stops (removes power) from the motor by setting the dutycycle to 0 
         """
-        self.setDC(0)
+        self.DC(0)
 
-    def setDC(self, dutycycle):
+    def DC(self, dutycycle):
         """
         The most basic way to drive the motor. Sets the motor's duty cycle to the given value.
         
@@ -103,34 +105,44 @@ class motor(logger.logger):
         
         First checks the new value is different to the last value, and the value is valid.
         """
-        appliedval=self.mdrive.setDC(dutycycle)
-        self.motorforward= dutycycle > 0           
-        self.log(ltype='phys', setting='dutycycle', newval=abs(dutycycle))
+        appliedval=self.mdrive.DC(dutycycle)
+        if appliedval != 0:
+            self.motorforward=appliedval > 0           
+        self.log(ltype='phys', setting='dutycycle', newval=abs(appliedval))
         return appliedval
 
-    def setFrequency(self, frequency):
+    def frequency(self, frequency):
         """
-        changes the frequency to be used for this motor. For low revs, low frequencies work better than higher
-        frequencies, albeit this can make the motion a bit jerky.
-        """
-        return self.mdrive.setFrequency(frequency)
+        returns the frequency to be used for this motor. First changes the frequency if the value is not None.
         
-    def setRPM(self, rpm):
+        For low revs, low frequencies work better than higher frequencies, albeit this can make the motion a bit jerky.
+        
+        frequency: None or the frequency in Hz. (no change is made if None)
+        
+        returns the current frequency
         """
-        Provides an approximately linear way to drive the motor, i.e. the motor rpm should be a simple ratio of the speed
+        return self.mdrive.frequency(frequency)
+        
+    def targetRPM(self, rpm):
+        """
+        returns and optionally sets the current target rpm
+        
+        This provides an approximately linear way to drive the motor, i.e. the motor rpm should be a simple ratio of the speed
         parameter to this call.
         
-        The value of speed should be in the range of values supported by the speedtable.
+        The value of speed - if not None - should be in the range of values supported by the speedtable.
         
         This uses the lookup table in self.speedtabf and self.speedtabb. See speedtable255 for an explanation.
         """
-        fr, dc=self.rpmtoFDC(speed)
-        self.log(ltype='phys', setting='speed', newval=speed)
-        self.lastspeed=speed
-        self.setFrequency(fr)
-        self.setDC(-dc if speed < 0 else dc)
+        if not rpm is None:
+            fr, dc=self.rpmtoFDC(speed)
+            self.log(ltype='phys', setting='speed', newval=speed)
+            self.targetrpm=rpm
+            self.frequency(fr)
+            self.DC(-dc if rpm < 0 else dc)
+        return self.targetrpm
 
-    def rpmtoFDC(self, speed):
+    def _rpmtoFDC(self, speed):
         """
         Uses the speedtable loaded earlier to find a frequency and duty cycle that should be close to the requested speed.
         Note this returns the absolute speed (i.e. always positive)

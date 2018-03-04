@@ -3,6 +3,7 @@
 import textdisp, keyboardinp
 
 from textdisp import dispfield as df, inpfield, selector
+import motorset
 
 class dcfield(inpfield):
     def offerkey(self, key):
@@ -18,15 +19,20 @@ class dcfield(inpfield):
                 dcadj=-1
             if not dcadj is None:
                newvalue=self.value+dcadj
+            goodval = None
             if not self.vcb is None and not dcadj is None:
-                goodval=self.vcb(value=self.value+dcadj, **self.vcbp)
-                return True, self.setValue(goodval)
+                goodval=self.vcb(value=self.value+dcadj, **self.vcbp)                
             if key=='0':
                 if not self.vcb is None:
                     goodval=self.vcb(value=0, **self.vcbp)
                 else:
                     goodval=0
-                return True, self.setValue(goodval)
+            if not goodval is None:
+                if isinstance(goodval, dict):
+                    self.parent.setFieldValues('mduty', values=goodval)
+                    goodval=[v for v in goodval.values()][0]
+                goodval = self.setValue(goodval)
+                return True, not goodval is None
             return True, False
         return True, False
 
@@ -44,13 +50,21 @@ class freqf(inpfield):
                 dcadj=.9
             if not self.vcb is None and not dcadj is None:
                 goodval=self.vcb(value=int(round(self.value*dcadj)), **self.vcbp)
-                return True, self.setValue(goodval)
+                if isinstance(goodval, dict):
+                    self.parent.setFieldValues('mfrequ', values=goodval)
+                    goodval=[v for v in goodval.values()][0]
+                goodval=self.setValue(goodval)
+                return True, not goodval is None
             return True, False
         return True, False
 
 
 def updatemotor(mname, matt, value):
     return getattr(m.motors[mname],matt)(value)
+
+def updatemotorlist(motors, funcname, value):
+    resu=getattr(m, funcname)(value, motors)
+    return resu
 
 def1=(
     {'name':'dmon'   , 'fclass':  df    ,'lineno': 0,'colno':20, 'style': 'label', 'format': 'last key:{:4s} hex:{:12s}','value':('',''), 'fmode':'*'},
@@ -70,38 +84,38 @@ def1=(
     {'name':'mdutyl' , 'fclass':  df    ,'lineno': 8,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'duty cycle'},
     {'name':'minvl'  , 'fclass':  df    ,'lineno': 9,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'reverse'},
     {'name':'mposnl' , 'fclass':  df    ,'lineno':10,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'position','atts': 'h'},
-    {'name':'mrpml'  , 'fclass':  df    ,'lineno':11,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'position','atts': 'h'},
+    {'name':'mrpml'  , 'fclass':  df    ,'lineno':11,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'RPM','atts': 'h'},
     
-    {'name':'mnameleft' , 'fclass':  df    ,'lineno': 4,'colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':'', 'atts': 'h'},
-    {'name':'mtypeleft' , 'fclass':  df    ,'lineno': 5,'colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':'', 'atts': 'h'},
-    {'name':'mdrvtleft' , 'fclass':  df    ,'lineno': 6,'colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':'', 'atts': 'h'},
-    {'name':'mfrequleft', 'fclass':  freqf ,'lineno': 7,'colno':14, 'style': 'output', 'format': '{:>7d}Hz      ', 'value':0, 'atts': 'h',
-                'valuecallback':updatemotor, 'cbparams': {'mname':'left', 'matt': 'setFrequency'}},
-    {'name':'mdutyleft' , 'fclass':  dcfield,'lineno': 8,'colno':14, 'style': 'output', 'format': '{:>7d}/255    ', 'value':0, 'atts': 'h',
-                'valuecallback':updatemotor, 'cbparams': {'mname':'left', 'matt': 'setDC'}},
-    {'name':'minvleft'  , 'fclass':selector,'lineno': 9,'colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':False, 'atts': 'h',
-                'selectmap': ((False,'forward'),(True,'reverse')),
-                'valuecallback':updatemotor, 'cbparams': {'mname':'left', 'matt': 'setInvert'}},
-    {'name':'mposnleft' , 'fclass':  df    ,'lineno':10,'colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
-    {'name':'mrpmleft'  , 'fclass':  df    ,'lineno':11,'colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
-
-    {'name':'mnameright' , 'fclass':  df    ,'lineno': 4,'colno':33, 'style': 'output', 'format': '{:^15.15s}', 'value':'', 'atts': 'h'},
-    {'name':'mtyperight' , 'fclass':  df    ,'lineno': 5,'colno':33, 'style': 'output', 'format': '{:^15.15s}', 'value':'', 'atts': 'h'},
-    {'name':'mdrvtright' , 'fclass':  df    ,'lineno': 6,'colno':33, 'style': 'output', 'format': '{:^15.15s}', 'value':'', 'atts': 'h'},
-    {'name':'mfrequright', 'fclass':  freqf ,'lineno': 7,'colno':33, 'style': 'output', 'format': '{:>7d}Hz      ', 'value':0, 'atts': 'h',
-                'valuecallback':updatemotor, 'cbparams': {'mname':'right', 'matt': 'setFrequency'}},
-    {'name':'mdutyright' , 'fclass':  dcfield,'lineno': 8,'colno':33, 'style': 'output', 'format': '{:>7d}/255    ', 'value':0, 'atts': 'h',
-                'valuecallback':updatemotor, 'cbparams': {'mname':'right', 'matt': 'setDC'}},
-    {'name':'minvright'  , 'fclass':selector,'lineno': 9,'colno':33, 'style': 'output', 'format': '{:^15.15s}', 'value':False, 'atts': 'h',
-                'selectmap': ((False,'forward'),(True,'reverse')),
-                'valuecallback':updatemotor, 'cbparams': {'mname':'right', 'matt': 'setInvert'}},
-    {'name':'mposnright' , 'fclass':  df    ,'lineno':10,'colno':33, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
-    {'name':'mrpmright'  , 'fclass':  df    ,'lineno':11,'colno':33, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
-
     {'name':'inlab'  , 'fclass':  df    ,'lineno':12,'colno':0 , 'style': 'label', 'format': '{:>20s}:', 'value':''},
     {'name':'inval'  , 'fclass':  df    ,'lineno':12,'colno':22, 'style': 'nonactinp', 'format': None, 'value':''}
 )
-deftabsequ= ('mfrequleft', 'mdutyleft', 'minvleft', 'mfrequright', 'mdutyright', 'minvright')
+
+jointfields=(
+    {'name':'mname*' , 'fclass':  df    ,'lineno': 4,'colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':'*all*'},
+    {'name':'mfrequ*', 'fclass':  freqf ,'lineno': 7,'colno':14, 'style': 'output', 'format': '{:>7d}Hz      ', 'value':0, 'atts': 't',
+                'valuecallback':updatemotorlist, 'cbparams': {'motors':None, 'funcname': 'motorFrequency'}},
+    {'name':'mduty*' , 'fclass':  dcfield,'lineno': 8,'colno':14, 'style': 'output', 'format': '{:>7d}/255    ', 'value':0, 'atts': 't',
+                'valuecallback':updatemotorlist, 'cbparams': {'motors':None, 'funcname': 'motorDC'}},
+    {'name':'mposn*' , 'fclass':  df    ,'lineno':10,'colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0},
+    {'name':'mrpm*'  , 'fclass':  df    ,'lineno':11,'colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0},
+)
+
+motorfields=(
+    {'name':'mname' , 'fclass':  df    ,'lineno': 4,'colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':''},
+    {'name':'mtype' , 'fclass':  df    ,'lineno': 5,'colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':''},
+    {'name':'mdrvt' , 'fclass':  df    ,'lineno': 6,'colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':''},
+    {'name':'mfrequ', 'fclass':  freqf ,'lineno': 7,'colno':14, 'style': 'output', 'format': '{:>7d}Hz      ', 'value':0, 'atts': 't',
+                'valuecallback':updatemotorlist, 'cbparams': {'motors':'x', 'funcname': 'motorFrequency'}},
+    {'name':'mduty' , 'fclass':  dcfield,'lineno': 8,'colno':14, 'style': 'output', 'format': '{:>7d}/255    ', 'value':0, 'atts': 't',
+                'valuecallback':updatemotorlist, 'cbparams': {'motors':'x', 'funcname': 'motorDC'}},
+    {'name':'minv'  , 'fclass':selector,'lineno': 9,'colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':False, 'atts': 't',
+                'selectmap': ((False,'forward'),(True,'reverse')),
+                'valuecallback':updatemotorlist, 'cbparams': {'motors':'x', 'funcname': 'motorInvert'}},
+    {'name':'mposn' , 'fclass':  df    ,'lineno':10,'colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
+    {'name':'mrpm'  , 'fclass':  df    ,'lineno':11,'colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
+)
+
+mcols=[14,33,52]
 
 #def1 2 motors on h-bridges directly controlled from gpio pins using pigpio pwm
 motordef1=(
@@ -132,42 +146,11 @@ motordefdchat=(
 )
 
 import time
-class tester():
+class tester(motorset.motorset):
     def __init__(self, mparams):
-        self.dcmh=None
-        self.piggy=None
-        self.motors={}
-        self.activefreq=200
-        self.activedutycycle=0
-        for mdef in mparams:
-            if 'dchparams' in mdef:
-                if self.dcmh is None:
-                    from dc_adafruit_dchat import dc_m_hat, dcmotorHatExtra
-                    self.dcmh = dcmotorHatExtra(addr=0x60, freq=self.activefreq)
-                mdrv=dc_m_hat(mhat=self.dcmh, **mdef['dchparams'])
-            elif 'direct_h' in mdef:
-                if self.piggy is None:
-                    from dc_h_bridge_pigpio import dc_h_bridge
-                    import pigpio
-                    self.piggy=pigpio.pi()
-                mdrv=dc_h_bridge(frequency=self.activefreq, piggy=self.piggy, **mdef['direct_h'])
-            else:
-                raise ValueError("motor def must have key 'dchparams' or 'direct_h'")
-            mot=None
-            if 'basicmotor' in mdef:
-                if 'senseparams' in mdef:
-                    import quadencoder
-                    if self.piggy is None:
-                        self.piggy=pigpio.pi()
-                    sens=quadencoder.quadencoder(piggy=self.piggy, **mdef['senseparams'])
-                else:
-                    sens=None
-                import dcmotorbasic
-                mot=dcmotorbasic.motor(mdrive=mdrv, sensor=sens, **mdef['basicmotor'])
-            if not mot is None:
-                self.motors[mot.name]=mot
-
-        self.dp=textdisp.display(def1, tabsequ=deftabsequ, setdebug=False)
+        super().__init__(motordefs=mparams, piggy=None)
+        motnames=[m['basicmotor']['name'] for m in mparams]
+        self.dp=textdisp.display(def1, colnames=motnames, setdebug=False)
         self.dp.updateFieldValue('cnote',self.dp.numcolours)
         self.keymon=keyboardinp.CheckConsole()
         self.tickcount=0
@@ -176,26 +159,39 @@ class tester():
             'a': self.nameMotor,
         }
         self.dp.setHotkeyActs(self.menuacts)
-        
-        for mname, m in self.motors.items():
-            self.dp.setFieldAtt('mname%s' % mname, 'h', False)
-            self.dp.updateFieldValue('mname%s' % mname, m.name)
-            self.dp.setFieldAtt('mtype%s' % mname, 'h', False)
-            self.dp.updateFieldValue('mtype%s' %mname, type(m).__name__)
-            self.dp.setFieldAtt('mdrvt%s' % mname, 'h', False)
-            self.dp.updateFieldValue('mdrvt%s' %mname, type(m.mdrive).__name__)
-            self.dp.setFieldAtt('mfrequ%s' % mname, 'h', False)
-            self.dp.updateFieldValue('mfrequ%s' %mname, self.activefreq)
-            self.dp.setFieldAtt('mduty%s' % mname, 'h', False)
-            self.dp.updateFieldValue('mduty%s' %mname, self.activedutycycle)
-            self.dp.setFieldAtt('minv%s' % mname, 'h', False)
-            self.dp.updateFieldValue('minv%s' %mname, m.getInvert())
-            if not m.lastposition() is None:
-                self.dp.setFieldAtt('mposnl', 'h', False)
+        first=True
+        for midx, mname in enumerate(motnames):
+            for mf in motorfields:
+                fmf=mf.copy()
+                fmf['name']+=mname
+                fmf['colno']=mcols[midx]
+                if 'cbparams' in fmf:
+                    cbp=fmf['cbparams'].copy()
+                    cbp['motors']=mname
+                    fmf['cbparams']=cbp
+                self.dp.addfield(fmf)
+            self.dp.updateFieldValue('mname%s' % mname, mname)
+            self.dp.updateFieldValue('mtype%s' %mname, type(self.motors[mname]).__name__)
+            self.dp.updateFieldValue('mdrvt%s' %mname, type(self.motors[mname].mdrive).__name__)
+            self.dp.updateFieldValue('mfrequ%s' %mname, self.motorFrequency(None, mname))
+            self.dp.updateFieldValue('mduty%s' %mname, self.motorDC(None, mname))
+            self.dp.updateFieldValue('minv%s' %mname, self.motorInvert(None, mname))
+            if not self.lastMotorPosition(mname) is None:
+                if first:
+                    self.dp.setFieldAtt('mposnl', 'h', False)
+                    self.dp.setFieldAtt('mrpml', 'h', False)
+                    first=False
                 self.dp.setFieldAtt('mposn%s' % mname, 'h', False)
-                self.dp.updateFieldValue('mposn%s' %mname, m.lastposition())
-                self.dp.setFieldAtt('mrpml', 'h', False)
+                dv=self.lastMotorPosition(mname)
+                self.dp.updateFieldValue('mposn%s' % mname, 0 if dv is None else dv)
                 self.dp.setFieldAtt('mrpm%s' % mname, 'h', False)
+                dv=self.lastMotorRPM(mname)
+                self.dp.updateFieldValue('mrpm%s' % mname, 0 if dv is None else dv)
+        if len(motnames) > 1:
+            jcol=mcols[len(motnames)]
+            for f in jointfields:
+                f['colno']=jcol
+                self.dp.addfield(f)
 
     def tickloop(self, interval):
         self.nexttick = time.time()+interval
@@ -222,15 +218,15 @@ class tester():
                     tm, ts=divmod(int(time.time()),60)
                     th, tm=divmod(tm,60)
                     self.dp.updateFieldValue('clock', (th % 24, tm, ts))
-                for m in self.motors.values():
-                    pos=m.lastposition()
-                    if not pos is None:
-                        self.dp.updateFieldValue('mposn%s' % m.name, pos)
-                    mrpm=m.lastrpm()
-                    if not mrpm is None:
-                        self.dp.updateFieldValue('mrpm%s' % m.name, mrpm)
+                ress=self.lastMotorPosition(None)
+                self.dp.setFieldValues('mposn', values=ress)
+                self.dp.updateFieldValue('mposn*', ress['right']-ress['left'])
+                ress=self.lastMotorRPM(None)
+                self.dp.setFieldValues('mrpm', values=ress)
+                self.dp.updateFieldValue('mrpm*', ress['right']-ress['left'])
             self.dp.show()
         self.keymon.close()
+        self.close()
         if not self.piggy is None:
             self.piggy.stop()
             self.piggy=None

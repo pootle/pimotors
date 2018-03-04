@@ -11,16 +11,18 @@ class logger():
     logheader='{M:02d}:{S:04.2f} {name:10s}: '
     lifelogso = ('life', {'filename': 'stdout', 'format': 'instance of {otype} {lifemsg}'})
 
-    def __init__(self, name, logtypes=None, **kwargs):
+    def __init__(self, name, logtypes=None, parent=None, **kwargs):
         """
         prepares the object and opens log files as required.
 
         name:      a useful name for the object to put in log entries
         logtypes : a list of 2-tuples, each with a logtype name and a dict of the settings to be used.
                     a logtype name can appear more than once and will be added to the list associated with that type
+        parent   : allows hierarchies of objects
         kwargs   : allows other keyword parameters to be ignored
         """
         self.name=name
+        self.parent=parent
         self.logentries={}
         if not logtypes is None:
             for lte in logtypes:

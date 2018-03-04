@@ -8,14 +8,6 @@ clearline='\033[K'
 reset='\033[0m'
 graphicmode='\033[{}m'
 
-# fieldstates=('disabled', 'hidden', 'active', 'error')
-# a set of additive states a field can be in that affect the appearance, some states override others...
-# 'hidden' stops the field from appearing at all
-# if not 'hidden' then:
-#     'error' typically changes the field background to dark red
-#     'active' emphasizes the field
-#     'disabled' de-emphasis the field and prevents it being the active field
-
 """
 each named entry in the style map has 3 possible components:
     bgcol: the background colour - any of the standard background colour strings can be used '30' - '37', '38;5;n' etc
@@ -26,6 +18,7 @@ each named entry in the style map has 3 possible components:
             'i' : italic
             'r' : swap fg / bg
             's' : strikethough
+            't' : 'tab'able - can be an active field (if not hidden)
             'u' : underline
 """
 fieldstylemap={
@@ -105,14 +98,17 @@ def setpos(dstate, ypos, xpos):
         dstate['cursory']=ypos
         dstate['cursorx']=xpos
         if debug:
-            print('-- cursor to line %3d, col %3d' % (dstate['topline']+ypos, xpos))
+#            print('-- cursor to line %3d, col %3d' % (dstate['topline']+ypos, xpos))
+            pass
         else:
             print(gotoyx.format(dstate['topline']+ypos,xpos+1),end='')
 
 class dispfield():
-    def __init__(self, name, lineno, colno, format, fmode=None, style=None, atts='', value=None):
+    def __init__(self, name, parent, lineno, colno, format, fmode=None, style=None, atts='', value=None):
         """
         name  : hashable object (typically string) used to get the field for update etc.
+        
+        parent: the container for this object
         
         lineno: lineno for the field, there can be blank lines which are automatically setup. a +ve integer TODO or hashable object that is the name of
                     another field to get the value from
@@ -136,6 +132,7 @@ class dispfield():
         
         """
         self.name=name
+        self.parent=parent
         self.lno=lineno
         self.colno=colno
         self.value=value
@@ -180,7 +177,11 @@ class dispfield():
         if self.format is None:
             dstr=self.value
         elif self.fmode is None:
-            dstr=self.format.format(dval)
+            try:
+                dstr=self.format.format(dval)
+            except TypeError:
+                print('Error formating >%s< in field %s with value %s' % (str(self.format), self.name, str(dval)))
+                raise
         elif self.fmode == '*':
             dstr=self.format.format(*dval)
         elif self.fmode == '**':
@@ -314,32 +315,57 @@ def makefield(fclass, **kwargs):
     except TypeError:
         print('')
         print('')
-        print('failure to make motor instance using params:')
+        print('failure to make field using params:')
         print(kwargs)
         print('on a %s' %fclass.__name__)
         raise
 
 class display():
-    def __init__(self, fieldefs, tabsequ=None, setdebug=None):
+    def __init__(self, fieldefs, colnames, setdebug=None):
         global debug
         if not setdebug is None:
             debug=setdebug
+        self.colnames=colnames
         curses.setupterm()
         self.numcolours = curses.tigetnum("colors")
-        linebuild=sorted([makefield(**f) for f in fieldefs],key=lambda x: x.lno)
+        linebuild=sorted([makefield(parent=self, **f) for f in fieldefs],key=lambda x: x.lno)
         maxline=max([f.lno for f in linebuild])
-        self.lines=[[f for f in linebuild if f.lno==i] for i in range(maxline+1)]
+        self.lines=[[] for i in range(maxline+1)]
         self.fields={f.name:f for f in linebuild}
-        assert len(self.fields)==len(linebuild), 'duplicate names in field list!'
-        for l in self.lines:
-            l.sort(key=lambda f: f.colno)
-        self.lineschanged=[[True, True] for l in self.lines]
-                # each line has 2 flags, the first means the whole line needs to be drawn, the second means 1 or more fields need to be redrawn
         self.bgstyle=fieldstylemap['background']
+        self.pendfields=linebuild
+        self.lineschanged=[[True, True] for l in self.lines]
+
+    def addfield(self, fielddef):
+        assert not fielddef['name'] in self.fields
+        f=makefield(parent=self, **fielddef)
+        self.pendfields.append(f)
+        self.fields[f.name]=f
+
+    def redolayout(self):
+        changedlines=[]
+        for pf in self.pendfields:
+            while pf.lno >= len(self.lines):
+                self.lines.append([])
+            self.lines[pf.lno].append(pf)
+            if not pf.lno in changedlines:
+                changedlines.append(pf.lno)
+        self.pendfields=[]
+        for lno in changedlines:
+            self.lines[lno].sort(key=lambda f: f.colno)
+        self.lineschanged=[[True, True] for l in self.lines]
         self.inpfield=None
-        self.tabsequ=tabsequ
+        self.tabsequ=None
         self.activefield=None
-        self.hotkeys={}
+        tabbyfields=[]
+        for l in self.lines:
+            for f in l:
+                if 't' in f.atts:
+                    tabbyfields.append(f)
+        if len(tabbyfields) > 0:
+            tabbyfields.sort(key=lambda x: x.lno)
+            tabbyfields.sort(key=lambda x: x.colno)
+            self.tabsequ=[f.name for f in tabbyfields]            
 
     def updateFieldValue(self, fname, fvalue):
         """
@@ -350,6 +376,23 @@ class display():
         f=self.fields[fname]
         if f.setValue(fvalue): #True if display needs updating
             self.lineschanged[f.lno][1]=True
+
+    def setFieldValues(self, root, values=None, onevalue=None):
+        """
+        Updates a row of field values.
+        
+        root    : the root of the field name, if values is present, then the keys from values are appended to this to identify each field, otherwise
+                  the onevalue is applied using all the entries in self.motnames
+        values  : a dict with keys for the columns to be updated and values to be applied to each
+        
+        onevalue: if values is None then onevalue is the values applied to the columns identified in self.motnames
+        """
+        collist=self.colnames if values is None else values.keys()
+        for cname in collist:
+            fname=root+cname
+            fval=onevalue if values is None else values[cname]
+            if not fval is None:
+                self.updateFieldValue(fname, fval)
 
     def setFieldAtt(self, fname, schar, avalue):
         """
@@ -368,6 +411,8 @@ class display():
         self.hotkeys=macts
 
     def show(self):
+        if len(self.pendfields) >0:
+            self.redolayout()
         ssize=shutil.get_terminal_size()
         dstate={'topline': ssize.lines-len(self.lines), 'cursory':None, 'cursorx': None, 'fg': None, 'bg':None, 'atts': ''}
         for lno, l in enumerate(self.lines):
@@ -456,6 +501,8 @@ class display():
                         self.activefield = 0
                 if zerohits < 2:
                     self.enterField(self.tabsequ[self.activefield])
+                    if debug:
+                        print('-- field', self.fields[self.tabsequ[self.activefield]].name,'set active')
                 else:
                     self.activefield=None
             return True

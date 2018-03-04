@@ -44,45 +44,44 @@ class dc_m_hat():
         """
         if 1 <= motorno <= 4:
             self.mhat=mhat
-            self.setFrequency(frequency)
+            self.frequency(frequency)
             self.motorno=motorno
             self.lastdc=None
-            self.invert=invert==True
+            self.isinverted=invert==True
             self.mot=self.mhat.getMotor(motorno)
             self.mot.run(adamh.RELEASE)
         else:
             raise ValueError('%s is not valid - should be integer in range (10..10000)',str(range))
 
-    def setInvert(self, invert):
+    def invert(self, invert):
         """
-        sets the flag that controls which way the motor turns for +ve values of dutycycle.
+        returns and optioanlly sets the flag that controls which way the motor turns for +ve values of dutycycle.
         
         This happens at the lowest level so most functionality uses this transparently.
         
-        invert  : sets the invert flag
+        invert  : if None the flag is unchanged else sets the invert flag
         
-        returns : True if the invert flag changed 
-        """ 
-        iv=invert==True
-        if iv != self.invert:
-            self.invert=iv
+        returns : current value of the flag
+        """
+        if not invert is None and (invert==True) != self.isinverted:
+            self.isinverted=invert==True
             if not self.lastdc is None:
                 self.lastdc = -self.lastdc
-        return iv
+        return self.isinverted
 
-    def setDC(self, dutycycle):
+    def DC(self, dutycycle):
         """
-        The most basic way to drive the motor. Sets the motor's duty cycle to the given value.
+        The most basic way to drive the motor. returns and optioanlly sets the motor's duty cycle to the given value.
         
-        This is the ONLY method that sets_PWM_dutycycle so this method also handles the invert flag
+        This is the ONLY method that sets_PWM_dutycycle so this method also handles the inverted flag
         The rpm resulting from different values of duty cycle will follow an approximately asymptotic curve after some 
         wibbly bits at low values.
         
-        First checks the new value is different to the last value, and clamps the value to the valid range.
+        First checks the new value is not None and is different to the last value, and clamps the value to the valid range.
         
         returns the value actually set
         """
-        if dutycycle == self.lastdc:
+        if dutycycle is None or dutycycle == self.lastdc:
             return self.lastdc
         if not -dc_m_hat.RANGE<=dutycycle<=dc_m_hat.RANGE:
             if dutycycle < -dc_m_hat.RANGE:
@@ -92,7 +91,7 @@ class dc_m_hat():
         if dutycycle==0:
             self.mot.run(adamh.RELEASE)
         forward = dutycycle > 0
-        if self.invert:
+        if self.isinverted:
             forward=not forward
         newval = int(abs(dutycycle))
         self.mot.run(adamh.FORWARD if forward else adamh.BACKWARD)
@@ -100,22 +99,30 @@ class dc_m_hat():
         self.lastdc=dutycycle
         return self.lastdc
 
-    def setFrequency(self, frequency):
+    def frequency(self, frequency):
         """
         changes the frequency to be used for this motor. For low revs, low frequencies work better than higher
         frequencies, albeit this can make the motion a bit jerky. Note that this HAT can only use a single frequency across
         all motors it controls.
+        
+        frequency:  None - returns the current setting, or the frequency in Hz.
         """
-        if not hasattr(self.mhat, 'pootlespwmfrequ') or self.mhat.pootlespwmfrequ != frequency:
+        if not frequency is None and self.mhat.pootlespwmfrequ != frequency:
             self.mhat._pwm.setPWMFreq(frequency)
             self.mhat.pootlespwmfrequ=frequency
-        return frequency
+        return self.mhat.pootlespwmfrequ
 
     def stop(self):
         """
         stops (removes power) from the motor.
         """
-        self.setDC(0)
+        self.DC(0)
+
+    def close(self):
+        """
+        takes appropriate action to turn-off / shut down the motor
+        """
+        self.DC(0)
 
     def odef(self):
-        return {'driver': type(self).__name__, 'motorno': self.motorno, 'invert': self.invert}
+        return {'driver': type(self).__name__, 'motorno': self.motorno, 'invert': self.isinverted}
