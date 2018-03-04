@@ -219,11 +219,13 @@ class tester(motorset.motorset):
                     th, tm=divmod(tm,60)
                     self.dp.updateFieldValue('clock', (th % 24, tm, ts))
                 ress=self.lastMotorPosition(None)
-                self.dp.setFieldValues('mposn', values=ress)
-                self.dp.updateFieldValue('mposn*', ress['right']-ress['left'])
+                if not ress['left'] is None:
+                    self.dp.setFieldValues('mposn', values=ress)
+                    self.dp.updateFieldValue('mposn*', ress['right']-ress['left'])
                 ress=self.lastMotorRPM(None)
-                self.dp.setFieldValues('mrpm', values=ress)
-                self.dp.updateFieldValue('mrpm*', ress['right']-ress['left'])
+                if not ress['left'] is None:
+                    self.dp.setFieldValues('mrpm', values=ress)
+                    self.dp.updateFieldValue('mrpm*', ress['right']-ress['left'])
             self.dp.show()
         self.keymon.close()
         self.close()
@@ -243,5 +245,5 @@ class tester(motorset.motorset):
         pass
 
 if __name__ == '__main__':
-    m=tester(motordef2)
+    m=tester(motordefdchat)
     m.tickloop(interval=.05)

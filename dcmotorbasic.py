@@ -57,7 +57,8 @@ class motor(logger.logger):
         self.targetrpm=0
 
     def close(self):
-        self.motorpos.close()
+        if not self.motorpos is None:
+            self.motorpos.close()
         super().close()
 
     def isforward(self):
