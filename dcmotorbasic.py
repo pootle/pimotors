@@ -55,6 +55,7 @@ class motor(logger.logger):
         self.speedtabb=None if speedtable is None else speedtable['b']
         self.minspeed = None if self.speedtabb is None else -self.speedtabb[-1][0]
         self.targetrpm=0
+        self.longactfunc=None
 
     def close(self):
         if not self.motorpos is None:
@@ -111,6 +112,9 @@ class motor(logger.logger):
             self.motorforward=appliedval > 0           
         self.log(ltype='phys', setting='dutycycle', newval=abs(appliedval))
         return appliedval
+
+    def maxDC(self):
+        return self.mdrive.maxDC()
 
     def frequency(self, frequency):
         """
@@ -174,6 +178,11 @@ class motor(logger.logger):
     def ticker(self, waittime):
         if not self.motorpos is None:
             self.motorpos.tick()
+        if not self.longactfunc is None:
+            newstate=self.longactfunc(self.longactstate)
+            if newstate==None:
+                self.longactfunc=None
+            self.longactstate=newstate
 
     def odef(self):
         x=super().odef()
