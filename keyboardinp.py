@@ -9,7 +9,7 @@ class CheckConsole():
         self.keyq = queue.Queue()
         self.running=True
         self.kthread=threading.Thread(target=self.keyreader, name='keyboardrdr')
-        atexit.register(self.stop)
+        atexit.register(self.putback)
         self.kthread.start()
 
     def stop(self):
@@ -21,10 +21,14 @@ class CheckConsole():
         while self.running:
             c=(sys.stdin.read(1))
             self.keyq.put(c)
+        self.putback
+        print('keyboard handler done')
+
+    def putback(self):
+        self.stop()
         if not self.old_settings is None:
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.old_settings)
         self.old_settings=None
-        print('keyboard handler done')
 
     def close(self):
         self.stop()
@@ -57,7 +61,7 @@ class CheckConsole():
         return nextchar
 
     esclookups={'A':'UPARR', 'B':'DNARR', 'C':'RTARR', 'D':'LTARR', '3': 'DEL', 'Z':'BACKTAB'}
-    ccodelookup={'\t':'TAB'}
+    ccodelookup={'\t':'TAB','\n': 'RETURN'}
 
 if __name__ == '__main__':
     last=None
