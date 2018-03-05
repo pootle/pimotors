@@ -54,17 +54,20 @@ class motorset():
             else:
                 raise ValueError("motor def must have key 'dchparams' or 'direct_h'")
             mot=None
+            if 'senseparams' in mdef:
+                import quadencoder
+                if self.piggy is None:
+                    import pigpio
+                    self.piggy=pigpio.pi()
+                sens=quadencoder.quadencoder(piggy=self.piggy, **mdef['senseparams'])
+            else:
+                sens=None
             if 'basicmotor' in mdef:
-                if 'senseparams' in mdef:
-                    import quadencoder
-                    if self.piggy is None:
-                        import pigpio
-                        self.piggy=pigpio.pi()
-                    sens=quadencoder.quadencoder(piggy=self.piggy, **mdef['senseparams'])
-                else:
-                    sens=None
                 import dcmotorbasic
                 mot=dcmotorbasic.motor(mdrive=mdrv, sensor=sens, **mdef['basicmotor'])
+            elif 'analysemotor' in mdef:
+                import motoranalyser
+                mot=motoranalyser.motoranalyse(mdrive=mdrv, sensor=sens, **mdef['analysemotor'])
             if not mot is None:
                 self.motors[mot.name]=mot
 
@@ -160,10 +163,10 @@ class motorset():
                     raise ValueError('%s is not a known motor name' % str(u))
             return [self.motors[m] for m in units]
 
-    def _listcall(self, units, method, *args):
+    def _listcall(self, units, method, *args, **kwargs):
         if units is None:
-            return {m.name: getattr(m, method)(*args) for m in self.motors.values()}
+            return {m.name: getattr(m, method)(*args, **kwargs) for m in self.motors.values()}
         elif isinstance(units, str):
-            return getattr(self.motors[units], method)(*args)
+            return getattr(self.motors[units], method)(*args, **kwargs)
         else:
-            return {m: getattr(self.motors[m], method)(*args) for m in units}
+            return {m: getattr(self.motors[m], method)(*args, **kwargs) for m in units}
