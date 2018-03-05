@@ -69,6 +69,12 @@ class dc_m_hat():
                 self.lastdc = -self.lastdc
         return self.isinverted
 
+    def maxDC(self):
+        """
+        returns the max valid value for duty cycle
+        """
+        return self.range
+
     def DC(self, dutycycle):
         """
         The most basic way to drive the motor. returns and optioanlly sets the motor's duty cycle to the given value.
