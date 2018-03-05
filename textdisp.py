@@ -22,7 +22,8 @@ each named entry in the style map has 3 possible components:
             'u' : underline
 """
 fieldstylemap={
-    'background': {'bg': ';43' , 'fg': ';33'},
+    'background': {'bg': ';43' , 'fg': ';39'},
+    'hidden'    : {'bg': ';43' , 'fg': ';33'},
     'label'     : {'bg': ';102', 'fg': ';30'},
     'output'    : {'bg': ';47' , 'fg': ';30'},
     'activeinp' : {'bg': ';40' , 'fg': ';37;1'},
@@ -188,7 +189,7 @@ class dispfield():
             dstr=self.format.format(**dval)
         modmods =''
         if 'h' in self.atts:
-            styleset=fieldstylemap['background']
+            styleset=fieldstylemap['hidden']
         else:
             styleset=fieldstylemap[self.style] 
             styleatts=styleset.get('atts','')
@@ -213,11 +214,19 @@ class inpfield(dispfield):
     The basics for a field that supports used input / amendment - the extra params allow parameterised callbacks invoked when the
     value of the field changes 
     
+    valuecallback : a function to call whenever the user changes the value
+    
+    cbparams      : dict of additional keyword args added to the callback.
+    
+    returncallback: a function to call when the hits return while the field is active. This can be used instead of OR as well as 
+                    the valuecallback function
+    
     """
-    def __init__(self, valuecallback, cbparams, **kwargs):
+    def __init__(self, valuecallback=None, cbparams=None, returncallback=None, **kwargs):
         super().__init__(**kwargs)
         self.vcb=valuecallback
         self.vcbp=cbparams
+        self.retcb=returncallback
 
     def enter(self):
         self.setAtt('r', True)
@@ -253,12 +262,16 @@ class selector(inpfield):
             elif key=='DNARR':
                 ix -= 1
             ix = ix % len(self.selectvals)
-            if not self.vcb is None:
-                goodval=self.vcb(value=ix, **self.vcbp)
+            if self.vcb is None:
+                return True, self.setValue(self.selectvals[ix])
+            else:
+                goodval=self.vcb(value=self.selectvals[ix], **self.vcbp)
                 return True, self.setValue(goodval)
             return True, False
+        elif key=='RETURN':
+            if callable(self.retcb) and self.value!='none':
+                self.retcb(value=self.value, **self.vcbp)
         return True, False
-
 
 class editfield(dispfield):
     def enter(self):
