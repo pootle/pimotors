@@ -127,14 +127,6 @@ motorfields=(
 
 mcols=[14,33,52]
 
-#def dc hat 2 motors on an adafruit dc and stepper motor hat
-motordefdchat=(
-    {'dchparams':{'motorno':4, 'invert': True},
-     'basicmotor':{'name':'left'},},
-    {'dchparams':{'motorno':3},
-     'basicmotor':{'name':'right'},},
-)
-
 import time
 class tester(motorset.motorset):
     def __init__(self, mparams):
