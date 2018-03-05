@@ -66,8 +66,11 @@ def updatemotorlist(motors, funcname, value):
     resu=getattr(m, funcname)(value, motors)
     return resu
 
+def runmotorfunc(**kwargs):
+    m.runmotorfunc(**kwargs)     
+
 def1=(
-    {'name':'dmon'   , 'fclass':  df    ,'lineno': 0,'colno':20, 'style': 'label', 'format': 'last key:{:4s} hex:{:12s}','value':('',''), 'fmode':'*'},
+#    {'name':'dmon'   , 'fclass':  df    ,'lineno': 0,'colno':20, 'style': 'label', 'format': 'last key:{:4s} hex:{:12s}','value':('',''), 'fmode':'*'},
     {'name':'title'  , 'fclass':  df    ,'lineno': 1,'colno':0 , 'style': 'label', 'format': '{:^32}', 'value':'pootles likkle app'},
     {'name':'cnote'  , 'fclass':  df    ,'lineno': 1,'colno':34, 'style': 'label', 'format': 'cc:{:3d}.', 'value':1},
     {'name':'onote'  , 'fclass':  df    ,'lineno': 1,'colno':44, 'style': 'label', 'format': 'or:{:3d}.', 'value':0},
@@ -85,9 +88,10 @@ def1=(
     {'name':'minvl'  , 'fclass':  df    ,'lineno': 9,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'reverse'},
     {'name':'mposnl' , 'fclass':  df    ,'lineno':10,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'position','atts': 'h'},
     {'name':'mrpml'  , 'fclass':  df    ,'lineno':11,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'RPM','atts': 'h'},
+    {'name':'manall' , 'fclass':  df    ,'lineno':12,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'motor test', 'atts': 'h'},
     
-    {'name':'inlab'  , 'fclass':  df    ,'lineno':12,'colno':0 , 'style': 'label', 'format': '{:>20s}:', 'value':''},
-    {'name':'inval'  , 'fclass':  df    ,'lineno':12,'colno':22, 'style': 'nonactinp', 'format': None, 'value':''}
+    {'name':'inlab'  , 'fclass':  df    ,'lineno':13,'colno':0 , 'style': 'label', 'format': '{:>20s}:', 'value':''},
+    {'name':'inval'  , 'fclass':  df    ,'lineno':13,'colno':22, 'style': 'nonactinp', 'format': None, 'value':''}
 )
 
 jointfields=(
@@ -96,8 +100,11 @@ jointfields=(
                 'valuecallback':updatemotorlist, 'cbparams': {'motors':None, 'funcname': 'motorFrequency'}},
     {'name':'mduty*' , 'fclass':  dcfield,'lineno': 8,'colno':14, 'style': 'output', 'format': '{:>7d}/255    ', 'value':0, 'atts': 't',
                 'valuecallback':updatemotorlist, 'cbparams': {'motors':None, 'funcname': 'motorDC'}},
-    {'name':'mposn*' , 'fclass':  df    ,'lineno':10,'colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0},
-    {'name':'mrpm*'  , 'fclass':  df    ,'lineno':11,'colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0},
+    {'name':'mposn*' , 'fclass':  df    ,'lineno':10,'colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
+    {'name':'mrpm*'  , 'fclass':  df    ,'lineno':11,'colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
+    {'name':'manal*' , 'fclass':selector,'lineno':12,'colno':14, 'style': 'output', 'format': '{:^15.15s}','value':'none', 'atts': 'th',
+                'selectmap': (('none', 'no action'),('findMaxrpm','max rpm')),
+                'returncallback': runmotorfunc, 'cbparams': {'motors':None, }},
 )
 
 motorfields=(
@@ -113,29 +120,12 @@ motorfields=(
                 'valuecallback':updatemotorlist, 'cbparams': {'motors':'x', 'funcname': 'motorInvert'}},
     {'name':'mposn' , 'fclass':  df    ,'lineno':10,'colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
     {'name':'mrpm'  , 'fclass':  df    ,'lineno':11,'colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
+    {'name':'manal' , 'fclass':selector,'lineno':12,'colno':14, 'style': 'output', 'format': '{:^15.15s}','value':'none', 'atts': 'th',
+                'selectmap': (('none', 'no action'),('findMaxrpm','max rpm')),
+                'returncallback': runmotorfunc, 'cbparams': {'motors':'x', }},
 )
 
 mcols=[14,33,52]
-
-#def1 2 motors on h-bridges directly controlled from gpio pins using pigpio pwm
-motordef1=(
-    {'direct_h':{'pinf':20, 'pinb':19},
-     'basicmotor': {'name':'left'},
-    },
-    {'direct_h':{'pinf':26, 'pinb':21},
-     'basicmotor': {'name':'right'},
-    },
-)
-
-#def2 2 motors on h-bridges directly controlled from pigpio (as def1) with rotation quadrature sensors monitored by pigpio that track motor position
-motordef2=(
-    {'direct_h':{'pinf':20, 'pinb':19},
-     'senseparams': {'pinss': ((9, 10)), 'edges': 'both', 'pulsesperrev':3},
-     'basicmotor': {'name':'left'},},
-    {'direct_h':{'pinf':26, 'pinb':21},
-     'senseparams': {'pinss': ((17, 27)), 'edges': 'both', 'pulsesperrev':3},
-     'basicmotor': {'name':'right'},},
-)
 
 #def dc hat 2 motors on an adafruit dc and stepper motor hat
 motordefdchat=(
@@ -149,7 +139,8 @@ import time
 class tester(motorset.motorset):
     def __init__(self, mparams):
         super().__init__(motordefs=mparams, piggy=None)
-        motnames=[m['basicmotor']['name'] for m in mparams]
+        usenames='basicmotor' if 'basicmotor' in mparams[0] else 'analysemotor'
+        motnames=[m[usenames]['name'] for m in mparams]
         self.dp=textdisp.display(def1, colnames=motnames, setdebug=False)
         self.dp.updateFieldValue('cnote',self.dp.numcolours)
         self.keymon=keyboardinp.CheckConsole()
@@ -160,6 +151,8 @@ class tester(motorset.motorset):
         }
         self.dp.setHotkeyActs(self.menuacts)
         first=True
+        staranal=False
+        starfeedback=False
         for midx, mname in enumerate(motnames):
             for mf in motorfields:
                 fmf=mf.copy()
@@ -170,8 +163,9 @@ class tester(motorset.motorset):
                     cbp['motors']=mname
                     fmf['cbparams']=cbp
                 self.dp.addfield(fmf)
+            mtype=type(self.motors[mname]).__name__
             self.dp.updateFieldValue('mname%s' % mname, mname)
-            self.dp.updateFieldValue('mtype%s' %mname, type(self.motors[mname]).__name__)
+            self.dp.updateFieldValue('mtype%s' %mname, mtype)
             self.dp.updateFieldValue('mdrvt%s' %mname, type(self.motors[mname].mdrive).__name__)
             self.dp.updateFieldValue('mfrequ%s' %mname, self.motorFrequency(None, mname))
             self.dp.updateFieldValue('mduty%s' %mname, self.motorDC(None, mname))
@@ -181,17 +175,27 @@ class tester(motorset.motorset):
                     self.dp.setFieldAtt('mposnl', 'h', False)
                     self.dp.setFieldAtt('mrpml', 'h', False)
                     first=False
+                    starfeedback=True
                 self.dp.setFieldAtt('mposn%s' % mname, 'h', False)
                 dv=self.lastMotorPosition(mname)
                 self.dp.updateFieldValue('mposn%s' % mname, 0 if dv is None else dv)
                 self.dp.setFieldAtt('mrpm%s' % mname, 'h', False)
                 dv=self.lastMotorRPM(mname)
                 self.dp.updateFieldValue('mrpm%s' % mname, 0 if dv is None else dv)
-        if len(motnames) > 1:
+                if mtype=='motoranalyse':
+                    self.dp.setFieldAtt('manal%s' % mname, 'h', False)
+                    self.dp.setFieldAtt('manall', 'h', False)
+                    staranal=True
+        if len(motnames) > 0:
             jcol=mcols[len(motnames)]
             for f in jointfields:
                 f['colno']=jcol
                 self.dp.addfield(f)
+            if starfeedback:
+                self.dp.setFieldAtt('mposn*', 'h', False)
+                self.dp.setFieldAtt('mrpm*', 'h', False)
+            if staranal:
+                self.dp.setFieldAtt('manal*', 'h', False)
 
     def tickloop(self, interval):
         self.nexttick = time.time()+interval
@@ -207,10 +211,11 @@ class tester(motorset.motorset):
                 if self.dp.offerkey(k):
                     pass
                 else:
-                    zkey=str(k)
-                    zkey = ''.join(c if ord(c) > 32 else '' for c in k)
-                    hexish = ":".join("{:02x}".format(ord(c)) for c in k)
-                    self.dp.updateFieldValue('dmon',(zkey, hexish))
+                    if 'dmon' in self.dp.fields:
+                        zkey=str(k)
+                        zkey = ''.join(c if ord(c) > 32 else '' for c in k)
+                        hexish = ":".join("{:02x}".format(ord(c)) for c in k)
+                        self.dp.updateFieldValue('dmon',(zkey, hexish))
             self.tickcount += 1
             if self.tickcount > 20:
                 self.tickcount=0
@@ -219,13 +224,15 @@ class tester(motorset.motorset):
                     th, tm=divmod(tm,60)
                     self.dp.updateFieldValue('clock', (th % 24, tm, ts))
                 ress=self.lastMotorPosition(None)
-                if not ress['left'] is None:
+                if not ress is None:
                     self.dp.setFieldValues('mposn', values=ress)
-                    self.dp.updateFieldValue('mposn*', ress['right']-ress['left'])
+                    if 'right' in ress and 'left' in ress and not ress['right'] is None and not ress['left'] is None:
+                        self.dp.updateFieldValue('mposn*', ress['right']-ress['left'])
                 ress=self.lastMotorRPM(None)
-                if not ress['left'] is None:
+                if not ress is None:
                     self.dp.setFieldValues('mrpm', values=ress)
-                    self.dp.updateFieldValue('mrpm*', ress['right']-ress['left'])
+                    if 'right' in ress and 'left' in ress and not ress['right'] is None and not ress['left'] is None:
+                        self.dp.updateFieldValue('mrpm*', ress['right']-ress['left'])
             self.dp.show()
         self.keymon.close()
         self.close()
@@ -244,6 +251,19 @@ class tester(motorset.motorset):
     def makeMotor(self,x,y):
         pass
 
+    def runmotorfunc(self, motors, value, **kwargs):
+        self._listcall(units=motors, method=value, **kwargs)
+        return
+
 if __name__ == '__main__':
-    m=tester(motordefdchat)
-    m.tickloop(interval=.05)
+    import argparse
+    import importlib
+
+    clparse = argparse.ArgumentParser(description="U3A RPi project motor driver.")
+    clparse.add_argument('-t', '--tick', type=float, default=.05, help="tick period in seconds, typically .1 to .01 seconds")
+    clparse.add_argument('config', help='configuration file to use')
+    args=clparse.parse_args()
+    conf=importlib.import_module(args.config)
+
+    m=tester(conf.motordef)
+    m.tickloop(interval=args.tick)
