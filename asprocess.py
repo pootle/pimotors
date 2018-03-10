@@ -50,29 +50,48 @@ def classrunner(wrappedModuleName, wrappedClassName, ticktime, procend, kwargs):
         time.sleep(.5)
         return
     procend.send(('OK',type(ci).__name__, -1))
-    nexttime=time.time()+ticktime
-    while True:
+    waittime=0
+    cpustart=time.process_time()
+    clockstart=time.time()
+    nexttime=clockstart+ticktime
+    running=True
+    while running:
         delay=nexttime-time.time()
         while delay>0:
+            pstart=time.time()
             r,w,e=select.select([procend],[],[], delay)
+            waittime+=(time.time()-pstart)
             if r:
                 mname, sync, rid, kwargs = procend.recv()
-                try:
-                    f=getattr(ci, mname)
-                except AttributeError:
-                    procend.send(('NoMethod', mname,rid))
-                    f=None
-                if not f is None:
-                    if sync:
-                        try:
-                            resp=f(**kwargs)
-                            procend.send(('OK', resp, rid))
-                        except:
-                            exc_type, exc_value, exc_traceback = sys.exc_info()
-                            procend.send(('MethodException', 
-                                str(exc_type) + '\n' + str(exc_value) + '\n' + ''.join(traceback.format_tb(exc_traceback)), rid))
-                    else:
-                        x=17/0
+                if mname is None:
+                    if sync=='x':
+                        procend.send(('OK',
+                            {   'elapsed' : time.time()-clockstart,
+                                'cputime' : time.process_time()-cpustart,
+                                'idletime': waittime},
+                            rid))
+                    elif sync=='e':
+                        running=False
+                else:
+                    try:
+                        f=getattr(ci, mname)
+                    except AttributeError:
+                        procend.send(('NoMethod', mname,rid))
+                        f=None
+                    if not f is None:
+                        if sync in ('s', 'e', 'a'):
+                            try:
+                                resp=f(**kwargs)
+                                if sync=='s':
+                                    procend.send(('OK', resp, rid))
+                            except:
+                                exc_type, exc_value, exc_traceback = sys.exc_info()
+                                procend.send(('MethodException', 
+                                    str(exc_type) + '\n' + str(exc_value) + '\n' + ''.join(traceback.format_tb(exc_traceback)), rid))
+                            if sync == 'e':
+                                running=False
+                        else:
+                            x=17/0
                 delay=nexttime-time.time()
         else:
             ci.ticker()
@@ -121,11 +140,21 @@ class runAsProcess(logger.logger):
             self.log(ltype='life', otype=type(self).__name__, lifemsg='Process failed to initialise class (%s): %s' % (self.laststatus, self.startinf))
 
     def runOnProc(self, method, sync, **kwargs):
+        """
+        stub methods call this to send info through the pipe to run the 'real' version of the method.
+        
+        method  : the name of the method to run
+        
+        sync    : 's' to run the method synchronously and return and results to the caller
+                  'a' to run method asynchronously and return immediately
+                  'e' to shut down the remote process by exiting the control loop and thus the process
+                      the closedown method of the class can be run if 'method' not None (plus any kwargs...)    
+        """
         if self.running:
             self.stubendpipe.send((method, sync, self.msgOutCount, kwargs))
-            if sync:
-                rid=self.msgOutCount
-                self.msgOutCount+=1
+            rid=self.msgOutCount
+            self.msgOutCount+=1
+            if sync=='s':
                 instatus, inresponse, outid = self.stubendpipe.recv()
                 if outid==rid:
                     if instatus=='OK':
@@ -135,8 +164,22 @@ class runAsProcess(logger.logger):
                         print(inresponse)
                 else:
                     print('message id mismatch, expected %d got %d' % (rid, outid))
+            elif sync=='a':
+                pass
+            elif sync=='e':
+                self.stubend()
             else:
-                self.msgOutCount+=1
+                raise ValueError('unknown sync value %s' % sync)
+        else:
+            x=17/0
+
+    def getProcessStats(self):
+        self.stubendpipe.send((None, 'x', self.msgOutCount, None))
+        rid=self.msgOutCount
+        self.msgOutCount+=1
+        instatus, inresponse, outid = self.stubendpipe.recv()
+        if instatus=='OK' and outid==rid:
+            return inresponse
         else:
             x=17/0
 

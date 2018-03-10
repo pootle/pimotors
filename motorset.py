@@ -134,14 +134,13 @@ class motorset():
             self.piggy=None
         self.motors={}
 
-    def ticker(self, waittime):
+    def ticker(self):
         """
         called at (hopefully very) regular intervals to provide feedback control for the motors
         
-        waittime: the time the outer cycle waited to align tick time - allows this to be added to logging
         """
         for m in self.motors.values():
-            m.ticker(waittime)
+            m.ticker()
 
 #######################################################################################
 # INTERNAL STUFF

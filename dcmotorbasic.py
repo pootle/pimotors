@@ -175,7 +175,7 @@ class motor(logger.logger):
             deltas=(aspeed-enta[0]) / (entb[0]-enta[0])
             return enta[1], int(round(enta[2]+(entb[2]-enta[2]) * deltas))
 
-    def ticker(self, waittime):
+    def ticker(self):
         if not self.motorpos is None:
             self.motorpos.tick()
         if not self.longactfunc is None:
