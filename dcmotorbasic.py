@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 """
-A module to provide simple in-line control of multiple pwm devices (typically dc motors via an h-bridge) using pigpio.
+A module to provide simple in-line control of multiple motors (typically dc motors via an h-bridge or a stepper) using pigpio.
 
 Originally implemented to control motors through a pimoroni explorer phat (https://shop.pimoroni.com/products/explorer-phat).
 
@@ -26,16 +26,16 @@ class motor(logger.logger):
 
     def __init__(self, mdrive, sensor=None, speedtable=None, **kwargs):
         """
-        Initialises a single PWM motor, interfacing is handled by the mdrive class instance
+        Initialises a single motor, interfacing is handled by the mdrive class instance
 
-        mdrive    : class instance that handles the low level interface to the motor.
+        mdrive      : class instance that handles the low level interface to the motor.
 
         sensor      : a optional class instance to handle the motor feedback sensor and maintain the position
         
-        speedtable: a table that maps requested speed to pwm values and frequencies to enable an approximately linear response
-                    from as low a speed as practical. a dict with 2 entries, 'f' for forwards table, 'b' for reverse table
+        speedtable  : a table that maps requested speed to pwm values and frequencies to enable an approximately linear response
+                      from as low a speed as practical. a dict with 2 entries, 'f' for forwards table, 'b' for reverse table
 
-        **kwargs  : allows other arbitrary keyword parameters to be ignored / passed to the super class.
+        **kwargs    : allows other arbitrary keyword parameters to be ignored / passed to the super class.
         
         self.motorforward is the last direction the motor was driven. It helps the fbmotorclass keep track of the motors position.
         Even if the motor speed is now zero this 
@@ -175,7 +175,7 @@ class motor(logger.logger):
             deltas=(aspeed-enta[0]) / (entb[0]-enta[0])
             return enta[1], int(round(enta[2]+(entb[2]-enta[2]) * deltas))
 
-    def ticker(self, waittime):
+    def ticker(self):
         if not self.motorpos is None:
             self.motorpos.tick()
         if not self.longactfunc is None:

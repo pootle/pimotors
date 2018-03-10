@@ -71,12 +71,12 @@ class logger():
                 else:
                     logf=logger.logfiles[le['filename']]
                 if 'format' in le:
-                    logf.write((le['format'] if 'noheader' in le else logger.logheader+le['format']).format(name=self.name,H=int(th), M=int(tm),S=
-ts, **params))
+                    logf.write((le['format'] if 'noheader' in le else logger.logheader+le['format']).format(
+                            name=self.name,H=int(th), M=int(tm),S=ts, **params))
                 elif 'asdict' in le:
                     logf.write(params.__repr__())
                 else:
-                    logf.write(logger.logheader.format(name=self.name,H=int(th), M=int(tm),S=ts)+str(params))
+                    logf.write(logger.logheader.format(name=self.name,H=int(th), M=int(tm),S=ts)+'\n'.join(['%s: %s' % (k,v) for k,v in params.items()]))
                 logf.write('\n')
 
     def odef(self):
