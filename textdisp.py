@@ -181,7 +181,10 @@ class dispfield():
             try:
                 dstr=self.format.format(dval)
             except TypeError:
-                print('Error formating >%s< in field %s with value %s' % (str(self.format), self.name, str(dval)))
+                print('TypeError formating >%s< in field %s with value %s' % (str(self.format), self.name, str(dval)))
+                raise
+            except ValueError:
+                print('ValueError formating >%s< in field %s with value %s' % (str(self.format), self.name, str(dval)))
                 raise
         elif self.fmode == '*':
             dstr=self.format.format(*dval)
@@ -341,17 +344,32 @@ class display():
         self.colnames=colnames
         curses.setupterm()
         self.numcolours = curses.tigetnum("colors")
-        linebuild=sorted([makefield(parent=self, **f) for f in fieldefs],key=lambda x: x.lno)
-        maxline=max([f.lno for f in linebuild])
+        self.pendfields=[]
+        self.fields={}
+        for f  in fieldefs:
+            self.addfield(f)
+#        linebuild=sorted([makefield(parent=self, **f) for f in fieldefs],key=lambda x: x.lno)
+        maxline=max([f.lno for f in self.pendfields])
         self.lines=[[] for i in range(maxline+1)]
-        self.fields={f.name:f for f in linebuild}
+#        self.fields={f.name:f for f in linebuild}
         self.bgstyle=fieldstylemap['background']
-        self.pendfields=linebuild
+#        self.pendfields=linebuild
         self.lineschanged=[[True, True] for l in self.lines]
+
+    def close(self):
+        ssize=shutil.get_terminal_size()
+        print(gotoyx.format(ssize.lines,0),flush=True, end='')
 
     def addfield(self, fielddef):
         assert not fielddef['name'] in self.fields
-        f=makefield(parent=self, **fielddef)
+        fd=fielddef.copy()
+        if isinstance(fd['lineno'],str):
+            ln=fd['lineno']
+            assert ln[0] == '='
+            if ln[0]=='=':
+                rf=self.fields[ln[1:]]
+                fd['lineno']=rf.lno
+        f=makefield(parent=self, **fd)
         self.pendfields.append(f)
         self.fields[f.name]=f
 
@@ -396,7 +414,7 @@ class display():
         
         root    : the root of the field name, if values is present, then the keys from values are appended to this to identify each field, otherwise
                   the onevalue is applied using all the entries in self.motnames
-        values  : a dict with keys for the columns to be updated and values to be applied to each
+        values  : a dict with keys for the columns to be updated and values to be applied to each, if None, the onevalue is used.
         
         onevalue: if values is None then onevalue is the values applied to the columns identified in self.motnames
         """
@@ -406,6 +424,22 @@ class display():
             fval=onevalue if values is None else values[cname]
             if not fval is None:
                 self.updateFieldValue(fname, fval)
+
+    def getFieldValue(self, root, keys=None):
+        """
+        fetches the value(s) of 1 or more fields,
+        
+        if keys is None:
+            returns the value of the field with name in root.
+        else:
+            keys is a list of strings.
+            a dict is returned with keys from the keys argument and values from the fields with names from root + each key in turn
+        """
+        if keys is None:
+            assert root in self.fields
+            return self.fields[root].value
+        else:
+            return {k:self.fields[root+k].value for k in keys}
 
     def setFieldAtt(self, fname, schar, avalue):
         """
@@ -422,6 +456,16 @@ class display():
         sets the list of 'hot' keys and the functions to call that are used when no individual field has focus.
         """
         self.hotkeys=macts
+
+    def setRefresh(self):
+        """
+        call if other things may have messed with the screen - forces full repaint
+        """
+        for lc in self.lineschanged:
+            lc[0]=True
+
+    def releaseCursor(self):
+        print(gotoyx.format(0,1),end='')
 
     def show(self):
         if len(self.pendfields) >0:

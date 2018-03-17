@@ -110,7 +110,123 @@ class motoranalyse(dcmotorbasic.motor):
             x=17/0
         return fmstate
 
-    def setupfmstate(self, tickfunc, testname, direction='both', tick=.05, delay=12, interval=2, oncomplete=None, logtype=None):
+    def mapdcToRPM(self, repeat=4, frequency=None, minDCfwd=30, minDCback=30, **kwargs):
+        """
+        Test motor for maximum speed
+        
+        The motor is set to full speed (max pwm value) and run for interval seconds and the tally count per second and hence rpm is calculated over that interval.
+        The test is repeated repeat times.
+        
+        direction: 'both', 'forward', 'backward'
+        
+        frequency: frequency to use for test
+        
+        delay:      time in seconds after starting before we start to measure speed
+        
+        interval:   time over which speed is measured
+
+        minDCfwd:   lowest DC value to use (forward).
+        
+        minDCback:  lowest DC value to use (backward).
+        
+        repeat:     number of times test is repeated
+        """
+        fmstate=self.setupfmstate(testname='mapDCtoRPM', tickfunc=self.mapdrtick, **kwargs)
+        fmstate['repeat'] = repeat
+        fmstate['count'] = 0
+        fmstate['phase'] = 'waitstop'
+        if self.mdrive.invert(None):
+            fmstate['minDCf'] = minDCfwd
+            fmstate['minDCb'] = minDCback            
+        else:
+            fmstate['minDCf'] = minDCfwd
+            fmstate['minDCb'] = minDCback
+        fmstate['rtemplate']['frequ'] = self.frequency(frequency)
+        self.DC(0)
+        fmstate['protime'] = time.time()+kwargs['delay']*10,
+
+    def mapdrtick(self, fmstate):
+        tnow=self.motorpos.lasttallytime
+        if fmstate['phase']=='waitstop':
+            if self.motorpos.lasttallydiff==0:    # wait for motor to show no movement, then move to windup phase
+                fmstate['phase']='windup'
+                fmstate['protime']=tnow+fmstate['delay']*4
+                if self.mdrive.invert(None) == (fmstate['curdir']=='f'):
+                    fmstate['dcchange']=-1
+                else:
+                    fmstate['dcchange']=1
+                fmstate['DC'] = fmstate['minDCf'] if fmstate['dcchange']==1 else -fmstate['minDCb']
+                self.DC(fmstate['DC'])
+            else:
+                print(self.name, self.motorpos.lasttallydiff)
+                if tnow > fmstate['protime']:# if motor hasn't stopped after delay there is a problem
+                    fmstate=self.rundone(msg='motor not stopped - abort', runok=False)
+        elif fmstate['phase']=='windup':
+            if tnow > fmstate['protime']:
+                if self.motorpos.lasttallydiff==0:
+                    if abs(fmstate['DC']) <100:
+                        # try faster
+                        fmstate['DC']+=fmstate['dcchange']
+                        self.DC(fmstate['DC'])
+                        fmstate['protime']=tnow+fmstate['delay']
+                    else:
+                        fmstate=self.rundone(msg='map speed scan: no motion detected (DC %d) - abort' % fmstate['DC'], runok=False)
+                else:
+                    fmstate['tallylist']=[]
+                    fmstate['tallystart']=tnow
+                    fmstate['protime']=tnow+fmstate['interval']
+                    fmstate['phase']='tallyho'
+        elif fmstate['phase']=='tallyho':
+            fmstate['tallylist'].append(self.motorpos.lasttallydiff)
+            if tnow > fmstate['protime']:
+                tps=abs(sum(fmstate['tallylist'])/(self.motorpos.lasttallytime-fmstate['tallystart']))
+                rpm=tps/self.motorpos.ticksperrev*60
+                newres=fmstate['rtemplate'].copy()
+                newres['direc']='f' if fmstate['dcchange']==1 else 'b'
+                newres['DC'] = fmstate['DC']
+                newres['tps']=tps
+                newres['rpm']=rpm
+                newres['tstamp']=self.motorpos.lasttallytime
+                newres['tallylist']=fmstate['tallylist']
+                self.log(ltype='analyser', **newres)
+                fmstate['DC']+=fmstate['dcchange']
+                if abs(fmstate['DC']) > self.mdrive.range:
+                    self.DC(0)
+                    fmstate['protime']=tnow+fmstate['delay']*10
+                    if fmstate['nextdir'] is None:
+                        fmstate['count']+=1
+                        if fmstate['count'] >= fmstate['repeat']:
+                            fmstate=self.rundone(msg='map speed scan: test run complete', runok=True)
+                        else:
+                            self.DC(0)
+                            fmstate['mode']='waitstop'
+                            fmstate['curdir']='f'
+                            fmstate['nextdir']=None
+                            if fmstate['requdir']=='backward':
+                                fmstate['curdir']='b'
+                            elif fmstate['requdir']=='both':
+                                fmstate['nextdir']='b'
+                    else:
+                        fmstate['curdir'] = fmstate['nextdir']
+                        fmstate['nextdir']=None
+                        fmstate['phase'] = 'waitstop'
+                else:
+                    self.DC(fmstate['DC'])
+                    fmstate['protime']=tnow+fmstate['delay']
+                    fmstate['phase']='windon'
+        elif fmstate['phase']=='windon':
+            if tnow > fmstate['protime']:
+                fmstate['tallylist']=[]
+                fmstate['tallystart']=tnow
+                fmstate['protime']=tnow+fmstate['interval']
+                fmstate['phase']='tallyho'
+                
+        else:
+            print('WHAT',fmstate['phase'])
+            x=17/0
+        return fmstate
+
+    def setupfmstate(self, tickfunc, testname, direction='both', tick=.05, delay=3, interval=2, oncomplete=None, logtype=None):
         """
         useful routine to setup standard parts of the state for tests / measures and the log entries they produce.
         """
@@ -120,14 +236,15 @@ class motoranalyse(dcmotorbasic.motor):
         fmstate={
             'rtemplate' : {'motor': self.name, 'testname': testname, 'direc':'f', 'runid':time.time(),
                            'tick': tick, 'tstamp':0},
-            'protime': time.time()+delay,
-            'delay': delay,
+            'protime' : time.time()+delay,
+            'delay'   : delay,
             'interval': interval,
-            'curdir': 'f',
-            'nextdir': None,
-            'runid': time.time(),
+            'requdir' : direction,
+            'curdir'  : 'f',
+            'nextdir' : None,
+            'runid'   : time.time(),
             'oncomplete': oncomplete,
-            'logto': logtype,
+            'logto'   : logtype,
                 }
         if direction=='backward':
             fmstate['curdir']='b'
@@ -143,11 +260,6 @@ class motoranalyse(dcmotorbasic.motor):
             fmstate['oncomplete'](runok)
         self.longactstate=None
         self.stop()
-        print('Z')
-        print('Z')
-        print('Z')
-        print('Z')
-        print('Z')
         print('Z')
         print('Z')
         print('Z')
