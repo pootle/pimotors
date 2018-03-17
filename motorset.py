@@ -107,6 +107,9 @@ class motorset():
         """
         return self._listcall(mlist, 'DC', dutycycle)
 
+    def motorSpeedLimits(self, mlist=None):
+        return self._listcall(mlist, 'speedLimits')
+
     def motorTargetRPM(self, rpm, mlist=None):
         """
         returns and optionally sets the target rpm of the given set of motors (see class help for mlist param)

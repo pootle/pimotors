@@ -58,16 +58,41 @@ class freqf(inpfield):
             return True, False
         return True, False
 
-
-def updatemotor(mname, matt, value):
-    return getattr(m.motors[mname],matt)(value)
+class speedr(inpfield):
+    def offerkey(self, key):
+        if key in ('UPARR', 'DNARR', 'LTARR', 'RTARR', '0', 'x', 'w'):
+            dcadj=None
+            if key=='UPARR':
+                dcadj=10
+            elif key=='DNARR':
+                dcadj=-10
+            elif key=='RTARR':
+                dcadj=2
+            elif key=='LTARR':
+                dcadj=-2
+            elif key=='0':
+                dcadj=-self.value
+            elif key=='w':
+                fmin, fmax=self.parent.getFieldValue('mfwds'+self.vcbp['motors'])
+                dcadj=-self.value+fmin
+            elif key=='x':
+                rmax, rmin=self.parent.getFieldValue('mrevs'+self.vcbp['motors'])
+                dcadj=-self.value+rmin
+            if not self.vcb is None and not dcadj is None:
+                newval=self.value+dcadj
+                print('--------------',newval)
+                goodval=self.vcb(value=newval, **self.vcbp)
+                if isinstance(goodval, dict):
+                    self.parent.setFieldValues('mspeed', values=goodval)
+                    goodval=[v for v in goodval.values()][0]
+                goodval=self.setValue(goodval)
+                return True, not goodval is None
+            return True, False
+        return True, False
 
 def updatemotorlist(motors, funcname, value):
     resu=getattr(m, funcname)(value, motors)
     return resu
-
-def runmotorfunc(**kwargs):
-    m.runmotorfunc(**kwargs)     
 
 def1=(
 #    {'name':'dmon'   , 'fclass':  df    ,'lineno': 0,'colno':20, 'style': 'label', 'format': 'last key:{:4s} hex:{:12s}','value':('',''), 'fmode':'*'},
@@ -83,46 +108,53 @@ def1=(
     {'name':'mnamel' , 'fclass':  df    ,'lineno': 4,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'motor name'},
     {'name':'mtypel' , 'fclass':  df    ,'lineno': 5,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'motor type'},
     {'name':'mdrvtl' , 'fclass':  df    ,'lineno': 6,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'driver'},
-    {'name':'mfrequl', 'fclass':  df    ,'lineno': 7,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'frequency'},
-    {'name':'mdutyl' , 'fclass':  df    ,'lineno': 8,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'duty cycle'},
-    {'name':'minvl'  , 'fclass':  df    ,'lineno': 9,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'reverse'},
-    {'name':'mposnl' , 'fclass':  df    ,'lineno':10,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'position','atts': 'h'},
-    {'name':'mrpml'  , 'fclass':  df    ,'lineno':11,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'RPM','atts': 'h'},
-    {'name':'manall' , 'fclass':  df    ,'lineno':12,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'motor test', 'atts': 'h'},
+    {'name':'mrevsl' , 'fclass':  df    ,'lineno': 7,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'rev speeds','atts': 's'},
+    {'name':'mfwdsl' , 'fclass':  df    ,'lineno': 8,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'fwd speeds','atts': 's'},
+    {'name':'mfrequl', 'fclass':  df    ,'lineno': 9,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'frequency'},
+    {'name':'mdutyl' , 'fclass':  df    ,'lineno': 10,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'duty cycle'},
+    {'name':'minvl'  , 'fclass':  df    ,'lineno': 11,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'reverse'},
+    {'name':'mposnl' , 'fclass':  df    ,'lineno':12,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'position','atts': 's'},
+    {'name':'mrpml'  , 'fclass':  df    ,'lineno':13,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'RPM','atts': 's'},
+    {'name':'manall' , 'fclass':  df    ,'lineno':14,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'motor test', 'atts': 's'},
+    {'name':'mspeedl', 'fclass':  df    ,'lineno':15,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'target rpm', 'atts': 's'},
     
-    {'name':'inlab'  , 'fclass':  df    ,'lineno':13,'colno':0 , 'style': 'label', 'format': '{:>20s}:', 'value':''},
-    {'name':'inval'  , 'fclass':  df    ,'lineno':13,'colno':22, 'style': 'nonactinp', 'format': None, 'value':''}
+    {'name':'inlab'  , 'fclass':  df    ,'lineno':16,'colno':0 , 'style': 'label', 'format': '{:>20s}:', 'value':''},
+    {'name':'inval'  , 'fclass':  df    ,'lineno':16,'colno':22, 'style': 'nonactinp', 'format': None, 'value':''}
 )
 
 jointfields=(
-    {'name':'mname*' , 'fclass':  df    ,'lineno': 4,'colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':'*all*'},
-    {'name':'mfrequ*', 'fclass':  freqf ,'lineno': 7,'colno':14, 'style': 'output', 'format': '{:>7d}Hz      ', 'value':0, 'atts': 't',
+    {'name':'mname*' , 'fclass':  df    ,'lineno': '=mnamel','colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':'*all*'},
+    {'name':'mfrequ*', 'fclass':  freqf ,'lineno': '=mfrequl','colno':14, 'style': 'output', 'format': '{:>7d}Hz      ', 'value':0, 'atts': 't',
                 'valuecallback':updatemotorlist, 'cbparams': {'motors':None, 'funcname': 'motorFrequency'}},
-    {'name':'mduty*' , 'fclass':  dcfield,'lineno': 8,'colno':14, 'style': 'output', 'format': '{:>7d}/255    ', 'value':0, 'atts': 't',
+    {'name':'mduty*' , 'fclass':  dcfield,'lineno': '=mdutyl','colno':14, 'style': 'output', 'format': '{:>7d}/255    ', 'value':0, 'atts': 't',
                 'valuecallback':updatemotorlist, 'cbparams': {'motors':None, 'funcname': 'motorDC'}},
-    {'name':'mposn*' , 'fclass':  df    ,'lineno':10,'colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
-    {'name':'mrpm*'  , 'fclass':  df    ,'lineno':11,'colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
-    {'name':'manal*' , 'fclass':selector,'lineno':12,'colno':14, 'style': 'output', 'format': '{:^15.15s}','value':'none', 'atts': 'th',
-                'selectmap': (('none', 'no action'),('findMaxrpm','max rpm')),
-                'returncallback': runmotorfunc, 'cbparams': {'motors':None, }},
+    {'name':'mposn*' , 'fclass':  df    ,'lineno':'=mposnl','colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
+    {'name':'mrpm*'  , 'fclass':  df    ,'lineno':'=mrpml','colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
+    {'name':'manal*' , 'fclass':selector,'lineno':'=manall','colno':14, 'style': 'output', 'format': '{:^15.15s}','value':'none', 'atts': 'th',
+                'selectmap': (('none', 'no action'),('findMaxrpm','max rpm'), ('mapdcToRPM', 'map dc to speed')),
+                'returncallback': 'doMotorAction', 'cbparams': {'motors':None, }},
 )
 
 motorfields=(
-    {'name':'mname' , 'fclass':  df    ,'lineno': 4,'colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':''},
-    {'name':'mtype' , 'fclass':  df    ,'lineno': 5,'colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':''},
-    {'name':'mdrvt' , 'fclass':  df    ,'lineno': 6,'colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':''},
-    {'name':'mfrequ', 'fclass':  freqf ,'lineno': 7,'colno':14, 'style': 'output', 'format': '{:>7d}Hz      ', 'value':0, 'atts': 't',
+    {'name':'mname' , 'fclass':  df    ,'lineno': '=mnamel','colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':''},
+    {'name':'mtype' , 'fclass':  df    ,'lineno': '=mtypel','colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':''},
+    {'name':'mdrvt' , 'fclass':  df    ,'lineno': '=mdrvtl','colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':''},
+    {'name':'mrevs' , 'fclass':  df    ,'lineno': '=mrevsl','colno':14, 'style': 'output', 'format': '{:^7.2f}/{:^7.2f}', 'fmode': '*', 'value':(0,0), 'atts': 'h'},
+    {'name':'mfwds' , 'fclass':  df    ,'lineno': '=mfwdsl','colno':14, 'style': 'output', 'format': '{:^7.2f}/{:^7.2f}', 'fmode': '*', 'value':(0,0), 'atts': 'h'},
+    {'name':'mfrequ', 'fclass':  freqf ,'lineno': '=mfrequl','colno':14, 'style': 'output', 'format': '{:>7d}Hz      ', 'value':0, 'atts': 't',
                 'valuecallback':updatemotorlist, 'cbparams': {'motors':'x', 'funcname': 'motorFrequency'}},
-    {'name':'mduty' , 'fclass':  dcfield,'lineno': 8,'colno':14, 'style': 'output', 'format': '{:>7d}/255    ', 'value':0, 'atts': 't',
+    {'name':'mduty' , 'fclass':  dcfield,'lineno': '=mdutyl','colno':14, 'style': 'output', 'format': '{:>7.0f}/255    ', 'value':0, 'atts': 't',
                 'valuecallback':updatemotorlist, 'cbparams': {'motors':'x', 'funcname': 'motorDC'}},
-    {'name':'minv'  , 'fclass':selector,'lineno': 9,'colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':False, 'atts': 't',
+    {'name':'minv'  , 'fclass':selector,'lineno': '=minvl','colno':14, 'style': 'output', 'format': '{:^15.15s}', 'value':False, 'atts': 't',
                 'selectmap': ((False,'forward'),(True,'reverse')),
                 'valuecallback':updatemotorlist, 'cbparams': {'motors':'x', 'funcname': 'motorInvert'}},
-    {'name':'mposn' , 'fclass':  df    ,'lineno':10,'colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
-    {'name':'mrpm'  , 'fclass':  df    ,'lineno':11,'colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
-    {'name':'manal' , 'fclass':selector,'lineno':12,'colno':14, 'style': 'output', 'format': '{:^15.15s}','value':'none', 'atts': 'th',
-                'selectmap': (('none', 'no action'),('findMaxrpm','max rpm')),
-                'returncallback': runmotorfunc, 'cbparams': {'motors':'x', }},
+    {'name':'mposn' , 'fclass':  df    ,'lineno':'=mposnl','colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
+    {'name':'mrpm'  , 'fclass':  df    ,'lineno':'=mrpml','colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
+    {'name':'manal' , 'fclass':selector,'lineno':'=manall','colno':14, 'style': 'output', 'format': '{:^15.15s}','value':'none', 'atts': 'th',
+                'selectmap': (('none', 'no action'),('findMaxrpm','max rpm'), ('mapdcToRPM', 'map dc to speed')),
+                'returncallback': 'doMotorAction', 'cbparams': {'motors':'x', }},
+    {'name':'mspeed' , 'fclass':speedr,'lineno':'=mspeedl','colno':14, 'style': 'output', 'format': '{:^15.3f}','value':100, 'atts': 'th',
+                'valuecallback': updatemotorlist, 'cbparams': {'motors':'x', 'funcname': 'motorTargetRPM'}},
 )
 
 mcols=[14,33,52]
@@ -154,6 +186,9 @@ class tester(motorset.motorset):
                     cbp=fmf['cbparams'].copy()
                     cbp['motors']=mname
                     fmf['cbparams']=cbp
+                if 'returncallback' in fmf:
+                    if isinstance(fmf['returncallback'], str):
+                        fmf['returncallback']=getattr(self, fmf['returncallback'])
                 self.dp.addfield(fmf)
             mtype=type(self.motors[mname]).__name__
             self.dp.updateFieldValue('mname%s' % mname, mname)
@@ -162,10 +197,11 @@ class tester(motorset.motorset):
             self.dp.updateFieldValue('mfrequ%s' %mname, self.motorFrequency(None, mname))
             self.dp.updateFieldValue('mduty%s' %mname, self.motorDC(None, mname))
             self.dp.updateFieldValue('minv%s' %mname, self.motorInvert(None, mname))
+            check=self.lastMotorPosition(mname)
             if not self.lastMotorPosition(mname) is None:
                 if first:
-                    self.dp.setFieldAtt('mposnl', 'h', False)
-                    self.dp.setFieldAtt('mrpml', 'h', False)
+                    self.dp.setFieldAtt('mposnl', 's', False)
+                    self.dp.setFieldAtt('mrpml', 's', False)
                     first=False
                     starfeedback=True
                 self.dp.setFieldAtt('mposn%s' % mname, 'h', False)
@@ -178,6 +214,16 @@ class tester(motorset.motorset):
                     self.dp.setFieldAtt('manal%s' % mname, 'h', False)
                     self.dp.setFieldAtt('manall', 'h', False)
                     staranal=True
+            if not self.motorTargetRPM(None, mname) is None:
+                self.dp.setFieldAtt('mspeedl', 'h', False)
+                self.dp.setFieldAtt('mspeed%s' % mname, 'h', False)
+                speedfb, speedmb, speedmf, speedff=self.motorSpeedLimits(mname)
+                self.dp.setFieldAtt('mrevsl', 's', False)
+                self.dp.setFieldAtt('mfwdsl', 's', False)
+                self.dp.setFieldAtt('mrevs%s' % mname, 'h', False)
+                self.dp.setFieldAtt('mfwds%s' % mname, 'h', False)
+                self.dp.updateFieldValue('mrevs%s' % mname, (speedfb, speedmb))
+                self.dp.updateFieldValue('mfwds%s' % mname, (speedmf, speedff))
         if len(motnames) > 0:
             jcol=mcols[len(motnames)]
             for f in jointfields:
@@ -188,6 +234,7 @@ class tester(motorset.motorset):
                 self.dp.setFieldAtt('mrpm*', 'h', False)
             if staranal:
                 self.dp.setFieldAtt('manal*', 'h', False)
+        self.fieldupdatelist=['mposn', 'mrpm', 'mduty', 'mfrequ']
 
     def tickloop(self, interval):
         self.nexttick = time.time()+interval
@@ -197,7 +244,7 @@ class tester(motorset.motorset):
             k=self.keymon.get_data(max(0,wt))
             # do the motor tick first to minimise jitter
             for m in self.motors.values():
-                m.ticker(wt)
+                m.ticker()
             self.nexttick+=interval
             if not k is None:
                 if self.dp.offerkey(k):
@@ -209,25 +256,32 @@ class tester(motorset.motorset):
                         hexish = ":".join("{:02x}".format(ord(c)) for c in k)
                         self.dp.updateFieldValue('dmon',(zkey, hexish))
             self.tickcount += 1
-            if self.tickcount > 20:
+            if self.tickcount > 50:
                 self.tickcount=0
                 if 'clock' in self.dp.fields:
                     tm, ts=divmod(int(time.time()),60)
                     th, tm=divmod(tm,60)
                     self.dp.updateFieldValue('clock', (th % 24, tm, ts))
-                ress=self.lastMotorPosition(None)
-                if not ress is None:
-                    self.dp.setFieldValues('mposn', values=ress)
-                    if 'right' in ress and 'left' in ress and not ress['right'] is None and not ress['left'] is None:
-                        self.dp.updateFieldValue('mposn*', ress['right']-ress['left'])
-                ress=self.lastMotorRPM(None)
-                if not ress is None:
-                    self.dp.setFieldValues('mrpm', values=ress)
-                    if 'right' in ress and 'left' in ress and not ress['right'] is None and not ress['left'] is None:
-                        self.dp.updateFieldValue('mrpm*', ress['right']-ress['left'])
+                for fn in self.fieldupdatelist:
+                    if fn=='mposn':
+                        ress=self.lastMotorPosition(None)  
+                    elif fn=='mrpm':
+                        ress=self.lastMotorRPM(None)
+                    elif fn=='mduty':
+                        ress=self.motorDC(None, None)
+                    elif fn=='mfrequ':
+                        ress=self.motorFrequency(None)
+                        for k in ress:
+                            if ress[k]==None:
+                                ress[k]=0
+                    if not ress is None:
+                        self.dp.setFieldValues(fn, values=ress)
+#            self.dp.setRefresh()
             self.dp.show()
+            self.dp.releaseCursor()
         self.keymon.close()
         self.close()
+        self.dp.close()
         if not self.piggy is None:
             self.piggy.stop()
             self.piggy=None
@@ -247,6 +301,21 @@ class tester(motorset.motorset):
         self._listcall(units=motors, method=value, **kwargs)
         return
 
+    def doMotorAction(self, value, motors):
+#        print('doing', value, 'for', motors)
+        if value == 'findMaxrpm':
+            self._listcall(units=motors, method=value)
+        elif value =='mapdcToRPM':
+#            if not 'mduty' in self.fieldupdatelist:
+#                self.fieldupdatelist.append('mduty')
+            if motors is None:
+                frequ=self.dp.getFieldValue('mfrequ*')
+                # TODO update all motors frequ fields to match
+            else:
+                frequ=self.dp.getFieldValue('mfrequ'+motors)
+            self._listcall(units=motors, method=value, repeat=2, frequency=frequ, minDCfwd=20, minDCback=20, direction='both',
+                        delay=.5, interval=2)
+
 if __name__ == '__main__':
     import argparse
     import importlib
@@ -254,8 +323,14 @@ if __name__ == '__main__':
     clparse = argparse.ArgumentParser(description="U3A RPi project motor driver.")
     clparse.add_argument('-t', '--tick', type=float, default=.05, help="tick period in seconds, typically .1 to .01 seconds")
     clparse.add_argument('config', help='configuration file to use')
+    clparse.add_argument('-l', '--logfile', help="analyser log filename")
     args=clparse.parse_args()
     conf=importlib.import_module(args.config)
 
     m=tester(conf.motordef)
+    if args.logfile:
+        for mot in m.motors.values():
+            mot.addLog('analyser', filename=args.logfile, asdict=0, append=0)
+    for mot in m.motors.values():
+        mot.addLog('phys', filename='stdout', format='{setting} is {newval}.')
     m.tickloop(interval=args.tick)

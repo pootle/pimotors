@@ -7,7 +7,6 @@ Originally implemented to control motors through a pimoroni explorer phat (https
 This method using pigpio has a constant cpu load of ~10% on a raspberry pi Zero, as compared to the pimoroni module which has
 a constant cpu load of ~20%.
 """
-import statistics as st
 import logger
 
 class motor(logger.logger):
@@ -24,7 +23,7 @@ class motor(logger.logger):
     """
     physlogso=('phys', {'filename': 'stdout', 'format': '{setting} is {newval}.'})
 
-    def __init__(self, mdrive, sensor=None, speedtable=None, **kwargs):
+    def __init__(self, mdrive, sensor=None, speedmapinfo=None, **kwargs):
         """
         Initialises a single motor, interfacing is handled by the mdrive class instance
 
@@ -32,8 +31,7 @@ class motor(logger.logger):
 
         sensor      : a optional class instance to handle the motor feedback sensor and maintain the position
         
-        speedtable  : a table that maps requested speed to pwm values and frequencies to enable an approximately linear response
-                      from as low a speed as practical. a dict with 2 entries, 'f' for forwards table, 'b' for reverse table
+        speedmapinfo: params for making speedmappers - see speedmapper class below (or whatever other class you use
 
         **kwargs    : allows other arbitrary keyword parameters to be ignored / passed to the super class.
         
@@ -47,14 +45,7 @@ class motor(logger.logger):
             self.motorpos.setforwardfunc(self.isforward)
         self.motorforward=True
         self.stop()
-        self.speedtabf=None if speedtable is None else speedtable['f']
-        if self.speedtabf is None:
-            self.maxspeed = None
-        else:
-            self.maxspeed = self.speedtabf[-1][0]
-        self.speedtabb=None if speedtable is None else speedtable['b']
-        self.minspeed = None if self.speedtabb is None else -self.speedtabb[-1][0]
-        self.targetrpm=0
+        self.speedmap=None if speedmapinfo is None else speedmapper(invert=self.mdrive.invert(None), **speedmapinfo)
         self.longactfunc=None
 
     def close(self):
@@ -86,9 +77,8 @@ class motor(logger.logger):
         newiv=self.mdrive.invert(invert)
         if newiv != oldiv:
             self.log(ltype='phys', setting='invert', newval=newiv)
-            x=self.speedtabf
-            self.speedtabf = self.speedtabb
-            self.speedtabb = x
+            if not self.speedmap is None:
+                self.speedmap.setInvert(newiv)
         return newiv
 
     def stop(self):
@@ -109,7 +99,7 @@ class motor(logger.logger):
         """
         appliedval=self.mdrive.DC(dutycycle)
         if appliedval != 0:
-            self.motorforward=appliedval > 0           
+            self.motorforward=appliedval > 0
         self.log(ltype='phys', setting='dutycycle', newval=abs(appliedval))
         return appliedval
 
@@ -126,8 +116,16 @@ class motor(logger.logger):
         
         returns the current frequency
         """
-        return self.mdrive.frequency(frequency)
-        
+        nf = self.mdrive.frequency(frequency)
+        if not frequency is None:
+            self.log(ltype='phys', setting='frequency', newval=nf)
+        return nf
+
+    def speedLimits(self):
+        if self.speedmap is None:
+            return None
+        return self.speedmap.speedLimits()      
+
     def targetRPM(self, rpm):
         """
         returns and optionally sets the current target rpm
@@ -135,47 +133,26 @@ class motor(logger.logger):
         This provides an approximately linear way to drive the motor, i.e. the motor rpm should be a simple ratio of the speed
         parameter to this call.
         
-        The value of speed - if not None - should be in the range of values supported by the speedtable.
+        The value of speed - if not None - should be in the range of values supported by the speedtable - but value is clamped.....
         
         This uses the lookup table in self.speedtabf and self.speedtabb. See speedtable255 for an explanation.
         """
+        if self.speedmap is None:
+            return None
         if not rpm is None:
-            fr, dc=self.rpmtoFDC(speed)
-            self.log(ltype='phys', setting='speed', newval=speed)
-            self.targetrpm=rpm
+            fr, dc, appliedspeed =self.speedmap.rpmtoFDC(rpm)
+            self.log(ltype='phys', setting='speed', newval=appliedspeed)
             self.frequency(fr)
             self.DC(-dc if rpm < 0 else dc)
-        return self.targetrpm
-
-    def _rpmtoFDC(self, speed):
-        """
-        Uses the speedtable loaded earlier to find a frequency and duty cycle that should be close to the requested speed.
-        Note this returns the absolute speed (i.e. always positive)
-        
-        This is expected to use values in the range defined in the speedtab, very low values (below those at which we get stable running) 
-        usually map to zero, the maximum value is clamped to the last entry in the speedtab.
-        """
-        aspeed = abs(speed)
-        usestab=self.speedtabf if speed>0 and not self.invert else self.speedtabb
-        i=0
-        while i < len(usestab) and usestab[i][0] < aspeed:
-            i+=1
-        if i>=len(usestab):
-            enta=None
-            entb=usestab[-1]
-        elif i==0 or usestab[i][0]==aspeed:
-            enta=None
-            entb=usestab[i]
         else:
-            enta=usestab[i-1]
-            entb=usestab[i]
-        if enta is None:
-            return entb[1:3]
-        else:
-            deltas=(aspeed-enta[0]) / (entb[0]-enta[0])
-            return enta[1], int(round(enta[2]+(entb[2]-enta[2]) * deltas))
+            appliedspeed=0
+        return appliedspeed
 
     def ticker(self):
+        """
+        called as a regular tick (typically 5 - 50 per second) from some higher place, this updates sensor info (if available) and
+        invokes any long term (e.g. multiple tick) operations.
+        """
         if not self.motorpos is None:
             self.motorpos.tick()
         if not self.longactfunc is None:
@@ -185,6 +162,157 @@ class motor(logger.logger):
             self.longactstate=newstate
 
     def odef(self):
+        """
+        This should return the info needed to recreate an identical motor
+        """
         x=super().odef()
         x.update({'mdrive': self.mdrive.odef(), 'speedtable': {'f': self.speedtabf, 'b':self.speedtabb}})
         return x
+
+class speedmapper():
+    """
+    A mapper to provide an approximately linear interface for motor speed, using whatever real world measure is appropriate.
+
+    Because DC motors have a complex relationship between the duty cycle and frequency of pulses and the resultant speed (rpm),
+    this class provides a simple lookup based mechanism to to map a requested speed to a suggested duty cycle and frequency.
+    
+    It provides a simple interface to build what is hopefully a reasonable mapping table, but a full table can also be passed.
+    """
+    def __init__(self, invert, ftable=None, rtable=None, fbuilder=None, rbuilder=None):
+        """
+        This prepares a speed mapper.
+        
+        Either provide forward and reverse speed tables, or min and max speeds and duty cycles.
+        
+        invert: True if we want the motor to go the other way, note the lookup still works on the true direction of the motor.
+                we assume the motor wiring is unchanged, we want to to logically go the other way
+        
+        ftable: lookup table for forward speeds. if None then min/max speed/DC are used to build a default table
+        
+        rtable: lookup table for reverse speeds. if None then min/max speed/DC are used to build a default table
+        
+        fbuilder, rbuilder: dicts that define parameters to build a default lookup table as follows:
+            
+            min_speed: a float defining the lowest speed we'll try to use, any speed below this value will be mapped to
+                        zero.
+            max_speed: a float defining the maximum speed we can use, this speed and any higher speed will map to 100% on
+                        duty cycle
+            
+            min_DC   : The duty cycle to use for the minimum speed
+            
+            max_DC   : the maximum applicable duty cycle (this allows duty cycle to use arbitrary units to match whatever
+                        lower level software expects
+        """
+        assert not ftable is None or not fbuilder is None
+        assert not rtable is None or not rbuilder is None
+        self.invert=invert
+        self.speedtabf, self.minSpeedf, self.maxSpeedf = self.maketable(**fbuilder) if ftable is None else (ftable, ftable[0][0], ftable[-1][0])
+        self.speedtabb, self.minSpeedb, self.maxSpeedb = self.maketable(**rbuilder) if rtable is None else (rtable, rtable[0][0], rtable[-1][0])
+
+    def speedLimits(self):
+        return -self.maxSpeedb, -self.minSpeedb, self.minSpeedf, self.maxSpeedf
+
+    def rpmtoFDC(self, speed):
+        """
+        Uses the speedtable loaded earlier to find a frequency and duty cycle that should be close to the requested speed.
+        Note this returns the absolute speed (i.e. always positive)
+        
+        This is expected to use values in the range defined in the speedtab, very low values (below those at which we get stable running) 
+        usually map to zero, the maximum value is clamped to the last entry in the speedtab.
+        """
+        fwd=speed >=0
+        if self.invert:
+            fwd = not fwd
+        aspeed = abs(speed)
+        if fwd:
+            usestab=self.speedtabf
+            if aspeed < self.minSpeedf:
+                useent=0
+                applied=0
+            elif aspeed > self.maxSpeedf:
+                useent=-1
+                applied=self.maxSpeedf
+            else:
+                useent=None
+                applied=aspeed
+        else:
+            usestab=self.speedtabb
+            if aspeed < self.minSpeedb:
+                useent=0
+                applied=0
+            elif aspeed > self.maxSpeedb:
+                useent=-1
+                applied=-self.maxSpeedb
+            else:
+                useent=None
+                applied=-aspeed
+        if useent is None:
+            i=0
+            while i < len(usestab) and usestab[i][0] < aspeed:
+                i+=1
+            if i>=len(usestab):
+                enta=None
+                entb=usestab[-1]
+            elif i==0 or usestab[i][0]==aspeed:
+                enta=None
+                entb=usestab[i]
+            else:
+                enta=usestab[i-1]
+                entb=usestab[i]
+            if enta is None:
+                return entb[1], entb[2], applied
+            else:
+                deltas=(aspeed-enta[0]) / (entb[0]-enta[0])
+                return enta[1], int(round(enta[2]+(entb[2]-enta[2]) * deltas)), applied
+        else:
+            enta=usestab[useent]
+            return enta[1], enta[2], applied
+
+    def setInvert(self, invert):
+        self.invert=invert
+
+    def maketable(self, minSpeed, maxSpeed, minDC, maxDC, oneFrequ=None, asint=True):
+        """
+        creates a hopefully useful speed map table from the given params and the simple table defined below
+        
+        the speeds and duty cycle values are offset and scaled to range between the minimum and maximum values given
+        minSpeed: the minimum valid speed. Any speed below this will be treated as zero.
+        maxSpeed: the maximum valid speed, Any speed above this will be treated as maxSpeed and will yield maxDC
+        minDC   : the dutycycle value to use for the lowest valid speed
+        maxDC   : the duty cycle value to use for the fastest valid speed
+        oneFrequ: if None the frequency from the simple table is used, otherwise all enries are forced to use this value
+        asint   : if True all duty cycle values are rounded to the nearest int 
+            
+        """
+        assert maxSpeed > minSpeed
+        assert maxDC > minDC
+        speedrange=maxSpeed-minSpeed
+        dcrange=maxDC-minDC
+        nst=[(minSpeed+speedrange*entry[0], entry[1] if oneFrequ is None else oneFrequ, minDC+dcrange*entry[2]) for entry in simplespeedtable]
+        nst.insert(0,(0,nst[1][1],0))
+        return nst, nst[1][0], nst[-1][0]
+
+simplespeedtable=[
+(0.0012062726176115801, 20, 0.0), 
+(0.0048250904704463205, 20, 0.00423728813559322), 
+(0.0048250904704463205, 20, 0.00847457627118644), 
+(0.012062726176115802, 20, 0.012711864406779662), 
+(0.025331724969843185, 20, 0.01694915254237288), 
+(0.06996381182147166, 20, 0.0211864406779661), 
+(0.11821471652593486, 20, 0.025423728813559324), 
+(0.14354644149577805, 20, 0.029661016949152543), 
+(0.18335343787696018, 40, 0.038135593220338986), 
+(0.22677925211097708, 40, 0.046610169491525424), 
+(0.31242460796139926, 40, 0.06779661016949153), 
+(0.3884197828709288, 40, 0.08898305084745763), 
+(0.5018094089264173, 40, 0.13135593220338984), 
+(0.5850422195416164, 80, 0.19491525423728814), 
+(0.6755126658624849, 80, 0.2584745762711864), 
+(0.7696019300361882, 80, 0.3432203389830508), 
+(0.8359469240048251, 80, 0.4491525423728814), 
+(0.8866103739445115, 80, 0.5550847457627118), 
+(0.9276236429433052, 80, 0.6610169491525424), 
+(0.9541616405307599, 80, 0.7669491525423728), 
+(0.9758745476477684, 80, 0.8728813559322034), 
+(1.0, 80, 1.0)]
+
