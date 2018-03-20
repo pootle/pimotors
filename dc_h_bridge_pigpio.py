@@ -26,7 +26,7 @@ class dc_h_bridge():
         invert    : boolean, if True swap forwards and backwards
         """
         assert isinstance(range, int) and 10<=range<=10000, '%s is not valid - should be integer in range (10..10000)' % str(range)
-        self.piggy=parent.needservice('pigpio')
+        self.piggy=parent.needservice(sname='piggy', className='pigpio.pi')
         self.isinverted=invert==True
         self.pinf=pinf
         self.pinb=pinb

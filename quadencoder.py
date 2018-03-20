@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+    #!/usr/bin/python3
 
 import pigpio, time
 
@@ -23,7 +23,7 @@ class quadencoder():
                             (if the motor has been set to zero speed, it may not yet have stopped) - can be set later if appropriate
         initialpos  : sets the starting position of the motor
         """
-        self.piggy=parent.needservice('pigpio')
+        self.piggy=parent.needservice(sname='piggy', className='pigpio.pi')
         self.edgemode = pigpio.RISING_EDGE if edges=='rising' else pigpio.FALLING_EDGE if edges=='falling' else pigpio.EITHER_EDGE
         self.ticksperrev = pulsesperrev*len(pinss)
         if self.edgemode==pigpio.EITHER_EDGE:
