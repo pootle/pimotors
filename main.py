@@ -151,10 +151,10 @@ motorfields=(
     {'name':'mposn' , 'fclass':  df    ,'lineno':'=mposnl','colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
     {'name':'mrpm'  , 'fclass':  df    ,'lineno':'=mrpml','colno':14, 'style': 'output', 'format': '{:^15.3f}', 'value':0, 'atts': 'h'},
     {'name':'manal' , 'fclass':selector,'lineno':'=manall','colno':14, 'style': 'output', 'format': '{:^15.15s}','value':'none', 'atts': 'th',
-                'selectmap': (('none', 'no action'),('findMaxrpm','max rpm'), ('mapdcToRPM', 'map dc to speed')),
+                'selectmap': (('none', 'no action'),('findMaxrpm','max rpm'), ('mapdcToRPM', 'map dc to speed'), ('mapSpeed', 'test speed map')),
                 'returncallback': 'doMotorAction', 'cbparams': {'motors':'x', }},
     {'name':'mspeed' , 'fclass':speedr,'lineno':'=mspeedl','colno':14, 'style': 'output', 'format': '{:^15.3f}','value':100, 'atts': 'th',
-                'valuecallback': updatemotorlist, 'cbparams': {'motors':'x', 'funcname': 'motorTargetRPM'}},
+                'valuecallback': updatemotorlist, 'cbparams': {'motors':'x', 'funcname': 'motorTargetSpeed'}},
 )
 
 mcols=[14,33,52]
@@ -163,8 +163,7 @@ import time
 class tester(motorset.motorset):
     def __init__(self, mparams):
         super().__init__(motordefs=mparams, piggy=None)
-        usenames='basicmotor' if 'basicmotor' in mparams[0] else 'analysemotor'
-        motnames=[m[usenames]['name'] for m in mparams]
+        motnames=[m['name'] for m in mparams]   
         self.dp=textdisp.display(def1, colnames=motnames, setdebug=False)
         self.dp.updateFieldValue('cnote',self.dp.numcolours)
         self.keymon=keyboardinp.CheckConsole()
@@ -212,9 +211,9 @@ class tester(motorset.motorset):
                 self.dp.updateFieldValue('mrpm%s' % mname, 0 if dv is None else dv)
                 if mtype=='motoranalyse':
                     self.dp.setFieldAtt('manal%s' % mname, 'h', False)
-                    self.dp.setFieldAtt('manall', 'h', False)
+                    self.dp.setFieldAtt('manall', 's', False)
                     staranal=True
-            if not self.motorTargetRPM(None, mname) is None:
+            if not self.motorTargetSpeed(None, mname) is None:
                 self.dp.setFieldAtt('mspeedl', 'h', False)
                 self.dp.setFieldAtt('mspeed%s' % mname, 'h', False)
                 speedfb, speedmb, speedmf, speedff=self.motorSpeedLimits(mname)
@@ -282,9 +281,6 @@ class tester(motorset.motorset):
         self.keymon.close()
         self.close()
         self.dp.close()
-        if not self.piggy is None:
-            self.piggy.stop()
-            self.piggy=None
 
     def exit(self):
         self.running=False
@@ -306,8 +302,6 @@ class tester(motorset.motorset):
         if value == 'findMaxrpm':
             self._listcall(units=motors, method=value)
         elif value =='mapdcToRPM':
-#            if not 'mduty' in self.fieldupdatelist:
-#                self.fieldupdatelist.append('mduty')
             if motors is None:
                 frequ=self.dp.getFieldValue('mfrequ*')
                 # TODO update all motors frequ fields to match
@@ -315,6 +309,8 @@ class tester(motorset.motorset):
                 frequ=self.dp.getFieldValue('mfrequ'+motors)
             self._listcall(units=motors, method=value, repeat=2, frequency=frequ, minDCfwd=20, minDCback=20, direction='both',
                         delay=.5, interval=2)
+        elif value=='mapSpeed':
+            self._listcall(units=motors, method=value, direction='forward', delay=4, interval=2.5)
 
 if __name__ == '__main__':
     import argparse
@@ -331,6 +327,4 @@ if __name__ == '__main__':
     if args.logfile:
         for mot in m.motors.values():
             mot.addLog('analyser', filename=args.logfile, asdict=0, append=0)
-    for mot in m.motors.values():
-        mot.addLog('phys', filename='stdout', format='{setting} is {newval}.')
     m.tickloop(interval=args.tick)

@@ -226,6 +226,114 @@ class motoranalyse(dcmotorbasic.motor):
             x=17/0
         return fmstate
 
+
+    def mapSpeed(self, repeat=2, speedsteps=100, **kwargs):
+        """
+        Test motor for maximum speed
+        
+        The motor is set to full speed (max pwm value) and run for interval seconds and the tally count per second and hence rpm is calculated over that interval.
+        The test is repeated repeat times.
+        
+        direction: 'both', 'forward', 'backward'
+        
+        delay:      time in seconds after starting before we start to measure speed
+        
+        interval:   time over which speed is measured
+
+        speedsteps: number of speeds to test using evenly spaced values between the minimum and maximum values in the speedtable
+        
+        repeat:     number of times test is repeated
+        """
+        fmstate=self.setupfmstate(testname='mapDCtoRPM', tickfunc=self.mapSpeedTick, **kwargs)
+        fmstate['repeat'] = repeat
+        fmstate['count'] = 0
+        fmstate['phase'] = 'waitstop'
+        fmstate['steps'] = speedsteps         
+        self.targetSpeed(0)
+        fmstate['protime'] = time.time()+kwargs['delay']*10,
+
+    def mapSpeedTick(self, fmstate):
+        tnow=self.motorpos.lasttallytime
+        if fmstate['phase']=='waitstop':
+            if self.motorpos.lasttallydiff==0:    # wait for motor to show no movement, then move to windup phase
+                fmstate['phase']='windup'
+                fmstate['protime']=tnow+fmstate['delay']*4
+                speedfb, speedmb, speedmf, speedff=self.speedLimits()
+                if fmstate['curdir']=='f':
+                    fmstate['speed']=speedmf
+                    fmstate['speedchange']=(speedff-speedmf)/fmstate['steps']
+                    fmstate['maxspeed']=speedff
+                else:
+                    fmstate['speed']=-speedmb
+                    fmstate['speedchange']=-(speedfb-speedmb)/fmstate['steps']
+                    fmstate['maxspeed']=speedmf
+                self.targetSpeed(fmstate['speed'])
+            else:
+                print(self.name, self.motorpos.lasttallydiff)
+                if tnow > fmstate['protime']:# if motor hasn't stopped after delay there is a problem
+                    fmstate=self.rundone(msg='motor not stopped - abort', runok=False)
+        elif fmstate['phase']=='windup':
+            if tnow > fmstate['protime']:
+                if self.motorpos.lasttallydiff==0:
+                    fmstate=self.rundone(msg='map speed scan: no motion detected (DC %d) - abort' % fmstate['DC'], runok=False)
+                else:
+                    fmstate['tallylist']=[]
+                    fmstate['tallystart']=tnow
+                    fmstate['protime']=tnow+fmstate['interval']
+                    fmstate['phase']='tallyho'
+        elif fmstate['phase']=='tallyho':
+            fmstate['tallylist'].append(self.motorpos.lasttallydiff)
+            if tnow > fmstate['protime']:
+                tps=abs(sum(fmstate['tallylist'])/(self.motorpos.lasttallytime-fmstate['tallystart']))
+                rpm=tps/self.motorpos.ticksperrev*60
+                newres=fmstate['rtemplate'].copy()
+                newres['direc']=fmstate['curdir']
+                newres['speed'] = fmstate['speed']
+                newres['tps']=tps
+                newres['rpm']=rpm
+                newres['tstamp']=self.motorpos.lasttallytime
+                newres['tallylist']=fmstate['tallylist']
+                self.log(ltype='analyser', **newres)
+                print('===============', fmstate['speed'], fmstate['speedchange'], fmstate['maxspeed'])
+                fmstate['speed']+=fmstate['speedchange']
+                if abs(fmstate['speed']) > fmstate['maxspeed']:
+                    self.targetSpeed(0)
+                    fmstate['protime']=tnow+fmstate['delay']*10
+                    if fmstate['nextdir'] is None:
+                        fmstate['count']+=1
+                        if fmstate['count'] >= fmstate['repeat']:
+                            fmstate=self.rundone(msg='map speed scan: test run complete', runok=True)
+                        else:
+                            self.targetSpeed(0)
+                            fmstate['mode']='waitstop'
+                            fmstate['curdir']='f'
+                            fmstate['nextdir']=None
+                            if fmstate['requdir']=='backward':
+                                fmstate['curdir']='b'
+                            elif fmstate['requdir']=='both':
+                                fmstate['nextdir']='b'
+                    else:
+                        fmstate['curdir'] = fmstate['nextdir']
+                        fmstate['nextdir']=None
+                        fmstate['phase'] = 'waitstop'
+                else:
+                    print('===============xxx', fmstate['speed'])
+                    self.targetSpeed(fmstate['speed'])
+                    fmstate['protime']=tnow+fmstate['delay']
+                    fmstate['phase']='windon'
+        elif fmstate['phase']=='windon':
+            if tnow > fmstate['protime']:
+                fmstate['tallylist']=[]
+                fmstate['tallystart']=tnow
+                fmstate['protime']=tnow+fmstate['interval']
+                fmstate['phase']='tallyho'
+                
+        else:
+            print('WHAT',fmstate['phase'])
+            x=17/0
+        return fmstate
+
+
     def setupfmstate(self, tickfunc, testname, direction='both', tick=.05, delay=3, interval=2, oncomplete=None, logtype=None):
         """
         useful routine to setup standard parts of the state for tests / measures and the log entries they produce.

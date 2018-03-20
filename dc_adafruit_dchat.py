@@ -51,11 +51,11 @@ class dc_m_hat():
             self.mot=self.mhat.getMotor(motorno)
             self.mot.run(adamh.RELEASE)
         else:
-            raise ValueError('%s is not valid - should be integer in range (10..10000)',str(range))
+            raise ValueError('%s is not valid - should be integer in range (1..4)',str(motorno))
 
     def invert(self, invert):
         """
-        returns and optioanlly sets the flag that controls which way the motor turns for +ve values of dutycycle.
+        returns and optionally sets the flag that controls which way the motor turns for +ve values of dutycycle.
         
         This happens at the lowest level so most functionality uses this transparently.
         
@@ -69,11 +69,12 @@ class dc_m_hat():
                 self.lastdc = -self.lastdc
         return self.isinverted
 
-    def maxDC(self):
+    @classmethod
+    def maxDC(cls):
         """
         returns the max valid value for duty cycle
         """
-        return self.range
+        return cls.RANGE
 
     def DC(self, dutycycle):
         """

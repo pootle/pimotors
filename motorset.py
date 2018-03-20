@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import time
+import logger
 
 class motorset():
     """
@@ -36,40 +37,27 @@ class motorset():
                                 see dc_h_bridge_pigpio.dc_h_bridge for details.
                 in this version, each motor must have an associated dchparams or direct_h entry.
         """
-        self.piggy=piggy
         self.dcmh = None
         self.motors={}
         for mdef in motordefs:
-            if 'dchparams' in mdef:
-                if self.dcmh is None:
-                    from dc_adafruit_dchat import dc_m_hat, dcmotorHatExtra
-                    self.dcmh = dcmotorHatExtra(addr=0x60, freq=200)
-                mdrv=dc_m_hat(mhat=self.dcmh, **mdef['dchparams'])
-            elif 'direct_h' in mdef:
-                from dc_h_bridge_pigpio import dc_h_bridge
-                if self.piggy is None:
-                    import pigpio
-                    self.piggy=pigpio.pi()
-                mdrv=dc_h_bridge(frequency=200, piggy=self.piggy, **mdef['direct_h'])
+            mot=logger.makeClassInstance(parent=self, **mdef)
+            self.motors[mot.name]=mot
+
+    def needservice(self, servicename):
+        """
+        called by motor instantiation if it uses a single instance of something
+        
+        servicename: name of the required class
+        """
+        try:
+            return getattr(self, servicename)
+        except AttributeError:
+            if servicename=='pigpio':
+                import pigpio
+                setattr(self,servicename, pigpio.pi())
             else:
-                raise ValueError("motor def must have key 'dchparams' or 'direct_h'")
-            mot=None
-            if 'senseparams' in mdef:
-                import quadencoder
-                if self.piggy is None:
-                    import pigpio
-                    self.piggy=pigpio.pi()
-                sens=quadencoder.quadencoder(piggy=self.piggy, **mdef['senseparams'])
-            else:
-                sens=None
-            if 'basicmotor' in mdef:
-                import dcmotorbasic
-                mot=dcmotorbasic.motor(mdrive=mdrv, sensor=sens, **mdef['basicmotor'])
-            elif 'analysemotor' in mdef:
-                import motoranalyser
-                mot=motoranalyser.motoranalyse(mdrive=mdrv, sensor=sens, **mdef['analysemotor'])
-            if not mot is None:
-                self.motors[mot.name]=mot
+                raise ValueError('unknown service instance %s requested' % servicename)
+        return getattr(self, servicename)
 
     def lastMotorPosition(self, mlist=None):
         """
@@ -110,13 +98,13 @@ class motorset():
     def motorSpeedLimits(self, mlist=None):
         return self._listcall(mlist, 'speedLimits')
 
-    def motorTargetRPM(self, rpm, mlist=None):
+    def motorTargetSpeed(self, speed, mlist=None):
         """
         returns and optionally sets the target rpm of the given set of motors (see class help for mlist param)
         
         See the motor class for details of the speed param.
         """
-        return self._listcall(mlist, 'targetRPM', rpm)
+        return self._listcall(mlist, 'targetSpeed', speed)
 
     def stopMotor(self, mlist=None):
         """
@@ -132,9 +120,9 @@ class motorset():
         for m in self._delist(None):
             m.close()
         time.sleep(.5)
-        if not self.piggy is None:
-            self.piggy.stop()
-            self.piggy=None
+        piggy=getattr(self,'pigpio', None)
+        if not piggy is None:
+            piggy.stop()
         self.motors={}
 
     def ticker(self):

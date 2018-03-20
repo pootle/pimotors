@@ -13,17 +13,17 @@ class quadencoder():
     
     This class cannot sense the motor's direction of rotation, so it asks the motor driver which direction the motor was last moving in
     """
-    def __init__(self, pinss, edges, pulsesperrev, piggy, isforward=None, initialpos=0):
+    def __init__(self, pinss, edges, pulsesperrev, parent, isforward=None, initialpos=0):
         """
         pinss       : a tuple / list / array of pins from feedback sensors.
         edges       : 'both', 'rising', or 'falling' - specifies which edges to count
         pulseperrev : the number of pulses we expect per rev per pin (= number of rising edges - twice this number counted in 'both' edge mode
-        piggy       : an instance of pigpio.pi - can be shared
+        parent      : object that provides function needservice to get pigpio shared instance 
         isforward   : a function that returns True if the motor is / was moving forward 
                             (if the motor has been set to zero speed, it may not yet have stopped) - can be set later if appropriate
         initialpos  : sets the starting position of the motor
         """
-        self.piggy=piggy
+        self.piggy=parent.needservice('pigpio')
         self.edgemode = pigpio.RISING_EDGE if edges=='rising' else pigpio.FALLING_EDGE if edges=='falling' else pigpio.EITHER_EDGE
         self.ticksperrev = pulsesperrev*len(pinss)
         if self.edgemode==pigpio.EITHER_EDGE:

@@ -23,13 +23,13 @@ class motor(logger.logger):
     """
     physlogso=('phys', {'filename': 'stdout', 'format': '{setting} is {newval}.'})
 
-    def __init__(self, mdrive, sensor=None, speedmapinfo=None, **kwargs):
+    def __init__(self, mdrive, rotationsense=None, speedmapinfo=None, **kwargs):
         """
-        Initialises a single motor, interfacing is handled by the mdrive class instance
+        Initialises a single motor, low level interfacing is handled by the driver specified in mdrive
 
-        mdrive      : class instance that handles the low level interface to the motor.
+        mdrive          : dict with class / class name and parameters for the constructor
 
-        sensor      : a optional class instance to handle the motor feedback sensor and maintain the position
+        rotationsense   : optional params for class instance to handle the motor feedback sensor
         
         speedmapinfo: params for making speedmappers - see speedmapper class below (or whatever other class you use
 
@@ -38,30 +38,60 @@ class motor(logger.logger):
         self.motorforward is the last direction the motor was driven. It helps the fbmotorclass keep track of the motors position.
         Even if the motor speed is now zero this 
         """
-        super().__init__(**kwargs)
-        self.mdrive=mdrive
-        self.motorpos=sensor
+        super().__init__(createlogmsg=False, **kwargs)
+        self.mdrive=logger.makeClassInstance(parent=self, **mdrive)
+        if rotationsense is None:
+            self.motorpos=None
+        else:
+            self.motorpos=logger.makeClassInstance(parent=self, **rotationsense)
         if not self.motorpos is None:
             self.motorpos.setforwardfunc(self.isforward)
         self.motorforward=True
-        self.stop()
-        self.speedmap=None if speedmapinfo is None else speedmapper(invert=self.mdrive.invert(None), **speedmapinfo)
+        self.speedmap=None if speedmapinfo is None else logger.makeClassInstance(invert=self.mdrive.invert(None), **speedmapinfo)
+        self.requestedSpeed=0
         self.longactfunc=None
+        self.logCreate()
+        self.stop()
+
+    def needservice(self, servicename):
+        return self.parent.needservice(servicename)
+
+    def logCreate(self):
+        if self.motorpos is None:
+            posmsg='no position sensing'
+        else:
+            posmsg='position sensing with a' + type(self.motorpos).__name__
+        if self.speedmap is None:
+            speedmsg='no speed mapping'
+        else:
+            speedmsg='speed mapping using a' + type(self.speedmap).__name__
+        self.log(ltype='life', otype=type(self).__name__, lifemsg='created motor with %s and %s.' % (posmsg, speedmsg))
+
+    def logClose(self):
+        self.log(ltype='life', otype=type(self).__name__, lifemsg='motor closed')
 
     def close(self):
+        """tidy shutdown"""
         if not self.motorpos is None:
             self.motorpos.close()
+        self.mdrive.close()
         super().close()
 
     def isforward(self):
+        """
+        returns True if the last direction was forward (specifically even if now zero, shows direction before stopping)
+        """
         return self.motorforward
 
     def lastPosition(self):
+        """
+        If the motor has a sensor, returns our most recent view of the position, otherwise returns None (i.e not known)
+        """
         return None if self.motorpos is None else self.motorpos.lastmotorpos
 
     def lastRPM(self):
         """
-        returns the actual rpm of the motor if the motor has an appropriate sensor (else None)
+        returns the most recent known actual rpm of the motor if the motor has an appropriate sensor (else None)
         """
         if self.motorpos is None or self.motorpos.lasttallyinterval == 0:
             return None
@@ -71,7 +101,9 @@ class motor(logger.logger):
         """
         returns and optionally sets the flag that controls which way the motor turns for +ve values of dutycycle.
         
-        This happens at the lowest level so most functionality uses this transparently.
+        invert: if None, returns the invert setting, otherwise sets invert to the given value and returns the new value.
+        
+        This is merely passed through to the low level driver.
         """ 
         oldiv = self.mdrive.invert(None)
         newiv=self.mdrive.invert(invert)
@@ -83,19 +115,19 @@ class motor(logger.logger):
 
     def stop(self):
         """
-        stops (removes power) from the motor by setting the dutycycle to 0 
+        stops (removes power) from the motor by setting the speed / dutycycle to 0 
         """
-        self.DC(0)
+        if self.speedmap is None:
+            self.DC(0)
+        else:
+            self.targetSpeed(0) # this will eventually set DC to zero as well
 
     def DC(self, dutycycle):
         """
         The most basic way to drive the motor. Sets the motor's duty cycle to the given value.
         
-        This is the ONLY method that calls set_PWM_dutycycle so this method also handles the invert flag
         The rpm resulting from different values of duty cycle will follow an approximately asymptotic curve after some 
         wibbly bits at low values.
-        
-        First checks the new value is different to the last value, and the value is valid.
         """
         appliedval=self.mdrive.DC(dutycycle)
         if appliedval != 0:
@@ -126,27 +158,32 @@ class motor(logger.logger):
             return None
         return self.speedmap.speedLimits()      
 
-    def targetRPM(self, rpm):
+    def targetSpeed(self, speed):
         """
-        returns and optionally sets the current target rpm
+        returns and optionally sets the current target speed.
         
         This provides an approximately linear way to drive the motor, i.e. the motor rpm should be a simple ratio of the speed
         parameter to this call.
         
         The value of speed - if not None - should be in the range of values supported by the speedtable - but value is clamped.....
         
-        This uses the lookup table in self.speedtabf and self.speedtabb. See speedtable255 for an explanation.
+        This uses the lookup table in self.speedtabf and self.speedtabb. See speedmapper class for an explanation.
+        
+        Note that the units here are arbitrary, but the PID feedback control values are implicitly linked with these units.
+        
+        speed   : the requested (target) speed
+        
+        returns : None if speed mapping not supported here else the actual value set (it is clamped by the speedmapper)
         """
         if self.speedmap is None:
             return None
-        if not rpm is None:
-            fr, dc, appliedspeed =self.speedmap.rpmtoFDC(rpm)
-            self.log(ltype='phys', setting='speed', newval=appliedspeed)
+        if not speed is None:
+            fr, dc, appliedspeed =self.speedmap.speedToFDC(speed)
+            self.requestedSpeed=appliedspeed if speed >=0 else -appliedspeed
+            self.log(ltype='phys', setting='speed', newval=self.requestedSpeed)
             self.frequency(fr)
-            self.DC(-dc if rpm < 0 else dc)
-        else:
-            appliedspeed=0
-        return appliedspeed
+            self.DC(-dc if speed < 0 else dc)
+        return self.requestedSpeed
 
     def ticker(self):
         """
@@ -184,7 +221,7 @@ class speedmapper():
         
         Either provide forward and reverse speed tables, or min and max speeds and duty cycles.
         
-        invert: True if we want the motor to go the other way, note the lookup still works on the true direction of the motor.
+        invert: The lookup always works on the true direction of the motor, so the table is associated with the 'real' motor direction.
                 we assume the motor wiring is unchanged, we want to to logically go the other way
         
         ftable: lookup table for forward speeds. if None then min/max speed/DC are used to build a default table
@@ -210,15 +247,26 @@ class speedmapper():
         self.speedtabb, self.minSpeedb, self.maxSpeedb = self.maketable(**rbuilder) if rtable is None else (rtable, rtable[0][0], rtable[-1][0])
 
     def speedLimits(self):
+        """
+        returns a 4-tuple of max reverse speed (-ve), min reverse speed (-ve), min forward speed and max forward speed
+
+        The units are arbitrary, and depend on how the speedtable is defined.        
+        """
         return -self.maxSpeedb, -self.minSpeedb, self.minSpeedf, self.maxSpeedf
 
-    def rpmtoFDC(self, speed):
+    def speedToFDC(self, speed):
         """
         Uses the speedtable loaded earlier to find a frequency and duty cycle that should be close to the requested speed.
         Note this returns the absolute speed (i.e. always positive)
         
         This is expected to use values in the range defined in the speedtab, very low values (below those at which we get stable running) 
         usually map to zero, the maximum value is clamped to the last entry in the speedtab.
+        
+        speed: the desired speed
+        
+        returns: 3 tuple: frequency, dutycycle and actual speed used (speed used is absolute value - i.e. always positive
+                note values below the minimum defined in the speedtable are changed to zero, and values above the maximum are changed to 
+                the maximum.
         """
         fwd=speed >=0
         if self.invert:
@@ -242,10 +290,10 @@ class speedmapper():
                 applied=0
             elif aspeed > self.maxSpeedb:
                 useent=-1
-                applied=-self.maxSpeedb
+                applied=self.maxSpeedb
             else:
                 useent=None
-                applied=-aspeed
+                applied=aspeed
         if useent is None:
             i=0
             while i < len(usestab) and usestab[i][0] < aspeed:
@@ -269,6 +317,9 @@ class speedmapper():
             return enta[1], enta[2], applied
 
     def setInvert(self, invert):
+        """
+        This should always be the same as the value in the motor driver which is the 'real' data
+        """
         self.invert=invert
 
     def maketable(self, minSpeed, maxSpeed, minDC, maxDC, oneFrequ=None, asint=True):

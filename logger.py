@@ -8,18 +8,19 @@ class logger():
     log files are held as a universal list 
     """
     logfiles={}
-    logheader='{M:02d}:{S:04.2f} {name:10s}: '
+    logheader='{M:02d}:{S:05.2f} {name:10s}: '
     lifelogso = ('life', {'filename': 'stdout', 'format': 'instance of {otype} {lifemsg}'})
 
-    def __init__(self, name, logtypes=None, parent=None, **kwargs):
+    def __init__(self, name, logtypes=None, parent=None, createlogmsg=True, **kwargs):
         """
         prepares the object and opens log files as required.
 
-        name:      a useful name for the object to put in log entries
-        logtypes : a list of 2-tuples, each with a logtype name and a dict of the settings to be used.
-                    a logtype name can appear more than once and will be added to the list associated with that type
-        parent   : allows hierarchies of objects
-        kwargs   : allows other keyword parameters to be ignored
+        name        : a useful name for the object to put in log entries
+        logtypes    : a list of 2-tuples, each with a logtype name and a dict of the settings to be used.
+                         a logtype name can appear more than once and will be added to the list associated with that type
+        parent      : allows hierarchies of objects
+        createlogmsg: if True this constructor calls logCreate, otherwise not (and the inheriting class should call it)
+        kwargs      : allows other keyword parameters to be ignored
         """
         self.name=name
         self.parent=parent
@@ -27,7 +28,8 @@ class logger():
         if not logtypes is None:
             for lte in logtypes:
                 self.addLog(lte[0], **lte[1])
-        self.logCreate()
+        if createlogmsg:
+            self.logCreate()
 
     def addLog(self, ltype, **kwargs):
         fn=kwargs['filename']
@@ -47,8 +49,11 @@ class logger():
     def logCreate(self):
         self.log(ltype='life', otype=type(self).__name__, lifemsg='created') #'instance {otype} {lifemsg}'
 
-    def close(self):
+    def logClose(self):
         self.log(ltype='life', otype=type(self).__name__, lifemsg='closed')
+
+    def close(self):
+        self.logClose()
         for lt,lv in self.logentries.items():
             for le in lv:
                 fn=le['filename']
@@ -58,7 +63,7 @@ class logger():
 
     def log(self, **params):
         """
-        adds a log for the given ltype as defined by the current objects' logentries 
+        adds a log entry for the given ltype as defined by the current objects' logentries 
         """
         ltype=params['ltype']
         if ltype in self.logentries:
@@ -77,10 +82,30 @@ class logger():
                     logf.write(params.__repr__())
                 else:
                     logf.write(logger.logheader.format(name=self.name,H=int(th), M=int(tm),S=ts)+'\n'.join(['%s: %s' % (k,v) for k,v in params.items()]))
-                logf.write('\n')
+                if le['filename']=='stdout':
+                    logf.write('\033[K\n')
+                else:
+                    logf.write('\n')
 
     def odef(self):
         return {'name':self.name}
 
     def __repr__(self):
         return '%s(**%s)' % (type(self).__name__, str(self.odef()))
+
+import importlib.import_module as modimporter
+
+def makeClassInstance(className, **kwargs):
+    """
+    creates an instance of the class identified by the hierarchic name, with other parameters
+    
+    className:  The hierarchic name for the required class - e.g. 'modulename.classname'
+    
+    **kwargs : all the other arguments required by the constructor
+    """
+    components = className.split('.')
+    mod = modimporter(components[0])
+    for comp in components[1:]:
+        mod = getattr(mod, comp)
+    return mod(**kwargs)
+    
