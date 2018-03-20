@@ -53,8 +53,8 @@ class motor(logger.logger):
         self.logCreate()
         self.stop()
 
-    def needservice(self, servicename):
-        return self.parent.needservice(servicename)
+    def needservice(self, **kwargs):
+        return self.parent.needservice(**kwargs)
 
     def logCreate(self):
         if self.motorpos is None:

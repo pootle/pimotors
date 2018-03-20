@@ -30,20 +30,20 @@ class dc_m_hat():
     A class that provides the low level interface to drive a dc motor through an Adafruit DC motor hat
     """
     RANGE=255
-    def __init__(self, motorno, mhat, frequency=400, invert=False):
+    def __init__(self, motorno, parent, frequency=400, invert=False):
         """
         prepares an instance to drive a motor connected through an ADAfruit motor hat.
         
-        motorno  : the motor number according to the adafruit library 1, 2 ,3 or 4.
-        mhat     : the instance of Adafruit_MotorHAT the motor is connected to
-        frequency: the frequency we want to use to drive the motor
-        invert   : flips the motor's direction 
+        motorno   : the motor number according to the adafruit library 1, 2 ,3 or 4.
+        parent    : object that provides function needservice to get adafruit hat instance
+        frequency : the frequency we want to use to drive the motor
+        invert    : flips the motor's direction 
         
         Note that the frequency is shared across all pwm ports on this hat, so we save the current value
         in the mhat object and only update if it changes. Higher level software beware.
         """
         if 1 <= motorno <= 4:
-            self.mhat=mhat
+            self.mhat=parent.needservice(sname='adafruitdcsm_hatdefault', className='dc_adafruit_dchat.dcmotorHatExtra', freq=40)
             self.frequency(frequency)
             self.motorno=motorno
             self.lastdc=None

@@ -93,7 +93,7 @@ class logger():
     def __repr__(self):
         return '%s(**%s)' % (type(self).__name__, str(self.odef()))
 
-import importlib.import_module as modimporter
+from importlib import import_module as modimporter
 
 def makeClassInstance(className, **kwargs):
     """
@@ -104,8 +104,20 @@ def makeClassInstance(className, **kwargs):
     **kwargs : all the other arguments required by the constructor
     """
     components = className.split('.')
-    mod = modimporter(components[0])
+    assert len(components) > 1, "className %s is not of form <modname>.<classname>" % className
+    try:
+        mod = modimporter(components[0])
+    except ImportError:
+        print("FAILED to import module %s for className %s" % (str(components[0]), str(className)))
+        raise
     for comp in components[1:]:
-        mod = getattr(mod, comp)
-    return mod(**kwargs)
-    
+        try:
+            mod = getattr(mod, comp)
+        except AttributeError:
+            print('FAILED to find %s in %s from className %s' % (str(comp), str(mod), str(className) ))
+            raise
+    try:
+        return mod(**kwargs)
+    except:
+        print('FAILED constructor call on %s with parameters %s' % (str(mod), str(kwargs)))
+        raise

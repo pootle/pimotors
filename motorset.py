@@ -18,46 +18,34 @@ class motorset():
     string                  : (name of motor) Only the motor identified by the name is used
     tuple, list, array...   : each entry is the name of a motor, all motors named are used
     """
-    def __init__(self, motordefs=None, piggy=None):
+    def __init__(self, motordefs=None):
         """
         Sets up motors from a list of dicts, each dict defines the details of an individual motor.
         
-        piggy       : a pigpio instance to use if needed. If None, an instance will be created if any of the underlying
-                        classes require it.
-
-        motordefs   : a list of dicts, 1 per motor to be setup. Each dict uses the following keys:
-                'basicmotor': creates a motor instance of type dcmotorbasic.motor.
-                                The 'name' parameter is the key by which the motor will be identified within this motor set.
-                'sensparams': if present, maps to a dict that defines the key info about a rotary encoder attached to the motor.
-                                see quadencoder.quadencoder for details.
-                'dchparams' : if present, maps to a dict that defines the key info for a dc motor driven by an adafruit dc motor hat.
-                                see dc_adafruit_dchat.dc_m_hat. For now, only one hat, using a default address, is supported.
-                'direct_h'  : if present, maps to a dict the defines the key info for a dc motor driven by an h-bridge controlled 
-                                gpio pins on the local machine.
-                                see dc_h_bridge_pigpio.dc_h_bridge for details.
-                in this version, each motor must have an associated dchparams or direct_h entry.
+        see config_h_bridge.py or config_adafruit_dc_sm_hat.py for details
         """
-        self.dcmh = None
+        self.sharedServices={}
         self.motors={}
         for mdef in motordefs:
             mot=logger.makeClassInstance(parent=self, **mdef)
             self.motors[mot.name]=mot
 
-    def needservice(self, servicename):
+    def needservice(self, sname, className, **servargs):
         """
         called by motor instantiation if it uses a single instance of something
         
-        servicename: name of the required class
+        sname       : the (unique) name by which we know the service - used as the key into self.sharedServices to check 
+                      if we already have the service
+
+        className   : the module and class needed to setup the service - see logger.makeClassInstance
+        
+        **servargs  : all the other params needed to make the service if it's not already there. In particular must have
+                      
         """
-        try:
-            return getattr(self, servicename)
-        except AttributeError:
-            if servicename=='pigpio':
-                import pigpio
-                setattr(self,servicename, pigpio.pi())
-            else:
-                raise ValueError('unknown service instance %s requested' % servicename)
-        return getattr(self, servicename)
+        if not sname in self.sharedServices:
+            serv=logger.makeClassInstance(className=className, **servargs)
+            self.sharedServices[sname]=serv
+        return self.sharedServices[sname]
 
     def lastMotorPosition(self, mlist=None):
         """
@@ -120,9 +108,6 @@ class motorset():
         for m in self._delist(None):
             m.close()
         time.sleep(.5)
-        piggy=getattr(self,'pigpio', None)
-        if not piggy is None:
-            piggy.stop()
         self.motors={}
 
     def ticker(self):

@@ -162,7 +162,7 @@ mcols=[14,33,52]
 import time
 class tester(motorset.motorset):
     def __init__(self, mparams):
-        super().__init__(motordefs=mparams, piggy=None)
+        super().__init__(motordefs=mparams)
         motnames=[m['name'] for m in mparams]   
         self.dp=textdisp.display(def1, colnames=motnames, setdebug=False)
         self.dp.updateFieldValue('cnote',self.dp.numcolours)
@@ -209,10 +209,9 @@ class tester(motorset.motorset):
                 self.dp.setFieldAtt('mrpm%s' % mname, 'h', False)
                 dv=self.lastMotorRPM(mname)
                 self.dp.updateFieldValue('mrpm%s' % mname, 0 if dv is None else dv)
-                if mtype=='motoranalyse':
-                    self.dp.setFieldAtt('manal%s' % mname, 'h', False)
-                    self.dp.setFieldAtt('manall', 's', False)
-                    staranal=True
+            if mtype=='motoranalyse':
+                self.dp.setFieldAtt('manal%s' % mname, 'h', False)
+                self.dp.setFieldAtt('manall', 's', False)
             if not self.motorTargetSpeed(None, mname) is None:
                 self.dp.setFieldAtt('mspeedl', 'h', False)
                 self.dp.setFieldAtt('mspeed%s' % mname, 'h', False)
@@ -317,7 +316,7 @@ if __name__ == '__main__':
     import importlib
 
     clparse = argparse.ArgumentParser(description="U3A RPi project motor driver.")
-    clparse.add_argument('-t', '--tick', type=float, default=.05, help="tick period in seconds, typically .1 to .01 seconds")
+    clparse.add_argument('-t', '--tick', type=float, default=.05, help="tick period in seconds, typically .1 to .01 seconds - default 20ms")
     clparse.add_argument('config', help='configuration file to use')
     clparse.add_argument('-l', '--logfile', help="analyser log filename")
     args=clparse.parse_args()
