@@ -320,7 +320,8 @@ if __name__ == '__main__':
     clparse.add_argument('config', help='configuration file to use')
     clparse.add_argument('-l', '--logfile', help="analyser log filename")
     args=clparse.parse_args()
-    conf=importlib.import_module(args.config)
+    cmod=args.config[:-3] if args.config.endswith('.py') else args.config
+    conf=importlib.import_module(cmod)
 
     m=tester(conf.motordef)
     if args.logfile:
