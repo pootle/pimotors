@@ -25,50 +25,57 @@ import os, sys, traceback
 import logger
 import time
 
-def classrunner(wrappedModuleName, wrappedClassName, ticktime, procend, kwargs):
-    try:
-        tmod=importlib.import_module(wrappedModuleName)
-        cls=getattr(tmod, wrappedClassName)
-    except ImportError as i:
-        procend.send(('ImportError', 'failed ' + i.msg, -1))
-        time.sleep(.5)
-        return
-    except AttributeError:
-        procend.send(('ClassError', 'failed to find class ' + wrappedClassName.__repr__(), -1))
-        time.sleep(.5)
-        return
-    except:
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        procend.send(('Moduleerror', str(exc_type) + '\n' + str(exc_value) + '\n' + ''.join(traceback.format_tb(exc_traceback)), -1))
-        time.sleep(.5)
-        return
-    try:
-        ci=cls() if kwargs is None else cls(**kwargs)
-    except:
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        procend.send(('ConstructionError', str(exc_type) + '\n' + str(exc_value) + '\n' + ''.join(traceback.format_tb(exc_traceback)), -1))
-        time.sleep(.5)
-        return
+def classrunner(wrappedClassName, ticktime, procend, kwacktimeout=None, timeoutfunction=None, **kwargs):
+    """
+    This function is the target for a thread. It runs the wrapped class with a ticker function.
+    
+    wrappedClassName : hierarchic name of target class - see logger.makeClassInstance for details.
+    
+    ticktime         : period to use for the ticker function
+    
+    procend          : pipe like object for communication back to originating object
+
+    kwacktimeout     : provide keep awake monitor, that checks for incoming calls and resets a timer....
+                        if None, no monitoring
+                        else inactivity period that triggers call to wrapped  class function
+
+    timeoutfunction  : name of the member function to call if inactivity timeout
+    
+    kwargs           : dict with keyword args to instantiate the class
+    
+    """
+    ci=logger.makeClassInstance(wrappedClassName, **kwargs)
     procend.send(('OK',type(ci).__name__, -1))
     waittime=0
     cpustart=time.process_time()
     clockstart=time.time()
+    lastincoming=clockstart
     nexttime=clockstart+ticktime
     running=True
+    tickcount=0
+    print('using timeout %3.1f to call %s, tick is %3.2f' % (0 if kwacktimeout is None else kwacktimeout, str(timeoutfunction), ticktime))
     while running:
         delay=nexttime-time.time()
         while delay>0:
             pstart=time.time()
+#            if tickcount < 50:
+#                print('delay is %2.2f' % delay)
             r,w,e=select.select([procend],[],[], delay)
-            waittime+=(time.time()-pstart)
+            tnow=time.time()
+            waittime+=(tnow-pstart)
             if r:
+                lastincoming=tnow
                 mname, sync, rid, kwargs = procend.recv()
+                print('reseting lastincoming for ' + sync)
                 if mname is None:
+                    if sync=='k':
+                        pass # trivial no-op just to reset the keep awake timer
                     if sync=='x':
                         procend.send(('OK',
                             {   'elapsed' : time.time()-clockstart,
                                 'cputime' : time.process_time()-cpustart,
-                                'idletime': waittime},
+                                'idletime': waittime,
+                                'ticks'   : tickcount},
                             rid))
                     elif sync=='e':
                         running=False
@@ -76,7 +83,7 @@ def classrunner(wrappedModuleName, wrappedClassName, ticktime, procend, kwargs):
                     try:
                         f=getattr(ci, mname)
                     except AttributeError:
-                        procend.send(('NoMethod', mname,rid))
+                        procend.send(('NoMethod', '>'+str(mname)+'>', rid))
                         f=None
                     if not f is None:
                         if sync in ('s', 'e', 'a'):
@@ -92,9 +99,17 @@ def classrunner(wrappedModuleName, wrappedClassName, ticktime, procend, kwargs):
                                 running=False
                         else:
                             x=17/0
-                delay=nexttime-time.time()
+            delay=nexttime-time.time()
         else:
+            if not kwacktimeout is None and time.time()>(lastincoming+kwacktimeout):
+                tmeth=getattr(ci, timeoutfunction)
+                print('timeout calls', tmeth)
+                tmeth()
+                lastincoming=time.time()+3
+#            else:
+#                print('zzzzzzzzzzzzz', kwacktimeout, (lastincoming+kwacktimeout)-time.time())
             ci.ticker()
+            tickcount+=1
             nexttime+=ticktime
 
 class runAsProcess(logger.logger):
@@ -112,14 +127,14 @@ class runAsProcess(logger.logger):
     
     Pipes are used as this is a 1:1 relationship, and it will allow an easy move to using sockets if a remote solution is later needed.
     """
-    def __init__(self, wrappedModuleName, wrappedClassName, ticktime, procName=None,
+    def __init__(self, wrappedClassName, ticktime, procName=None,
             locallogging={'logtypes':(('life',{'filename':'stdout'}),)}, **kwargs):
         """
         fires up a process which will create the wrapped class
         """
         self.stubendpipe, procendpipe = Pipe()
         self.proc=Process(target=classrunner, name=procName,
-                args=(wrappedModuleName, wrappedClassName, ticktime, procendpipe), kwargs=kwargs)
+                args=(wrappedClassName, ticktime, procendpipe), kwargs=kwargs)
         self.msgInCount = 0
         self.msgOutCount = 0
         self.proc.start()
@@ -128,7 +143,7 @@ class runAsProcess(logger.logger):
         if 'name' in locallogging:
             super().__init__(**locallogging)
         else:
-            super().__init__(name='stub for %s.%s' % (wrappedModuleName, wrappedClassName), **locallogging)
+            super().__init__(name='stub for %s' % (wrappedClassName), **locallogging)
 
     def logCreate(self):
         """
@@ -173,6 +188,12 @@ class runAsProcess(logger.logger):
         else:
             x=17/0
 
+    def sendkwac(self):
+        if self.running:
+            print('webserve sending kwac')
+            self.stubendpipe.send((None,'k',self.msgOutCount,None))
+            self.msgOutCount+=1
+
     def getProcessStats(self):
         self.stubendpipe.send((None, 'x', self.msgOutCount, None))
         rid=self.msgOutCount
@@ -181,6 +202,7 @@ class runAsProcess(logger.logger):
         if instatus=='OK' and outid==rid:
             return inresponse
         else:
+            print('================', instatus, outid, rid, inresponse)
             x=17/0
 
     def stubend(self):

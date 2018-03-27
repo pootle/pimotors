@@ -1,4 +1,4 @@
-    #!/usr/bin/python3
+#!/usr/bin/python3
 
 import pigpio, time
 
@@ -20,7 +20,7 @@ class quadencoder():
         pulseperrev : the number of pulses we expect per rev per pin (= number of rising edges - twice this number counted in 'both' edge mode
         parent      : object that provides function needservice to get pigpio shared instance 
         isforward   : a function that returns True if the motor is / was moving forward 
-                            (if the motor has been set to zero speed, it may not yet have stopped) - can be set later if appropriate
+                            (if the motor has been set to zero speed, it may not yet have stopped)
         initialpos  : sets the starting position of the motor
         """
         self.piggy=parent.needservice(sname='piggy', className='pigpio.pi')
@@ -44,9 +44,6 @@ class quadencoder():
         self.lasttallyinterval=0
         self.isforwardfunc=isforward
 
-    def setforwardfunc(self,f):
-        self.isforwardfunc=f
-
     def close(self):
         for i, pn in enumerate(self.mss):
             self.scb[i].cancel()
@@ -59,27 +56,29 @@ class quadencoder():
         """
         return self.lasttallydiff==0
 
-    def tick(self):
+    def __iter__(self):
         """
-        This method updates the motor position by reading the tally count and adjusting the motor position appropriately.
+        The iterator updates the motor position by reading the tally count and adjusting the motor position appropriately.
+        
+        It returns the latest known motor position.
         
         The tally counter always increases as it has no awareness of the motor's direction, so we use the motors last
         direction to check whether to add or subtract.
         
-        The motorpos is recorded in revolutions
-        
-        returns: 2-tuple, timestamp for the last reading and the change in motorpos in revs
+        The motorpos is recorded in revolutions.
+
+        Using an iterator is more efficient than calling a tick function
         """
-        tallyr=sum([s.tally() for s in self.scb])
-        tnow=time.time()
-        self.lasttallyinterval=tnow-self.lasttallytime
-        self.lasttallytime=tnow
-        tallydiff=tallyr-self.lasttallyread
-        self.prevmotorpos=self.lastmotorpos
-        if not self.isforwardfunc():
-            tallydiff = -tallydiff
-        self.lastmotorpos+=tallydiff / self.ticksperrev
-        self.lasttallyread=tallyr
-        self.lasttallydiff=tallydiff
-#        self.log(ltype='tally', prev=self.prevmotorpos, now=self.lastmotorpos, fwd=self.motorforward, change=tallydiff)
-        return self.lasttallytime, self.lastmotorpos-self.prevmotorpos
+        while True:
+            tallyr=sum([s.tally() for s in self.scb])
+            tnow=time.time()
+            self.lasttallyinterval=tnow-self.lasttallytime
+            self.lasttallytime=tnow
+            tallydiff=tallyr-self.lasttallyread
+            self.prevmotorpos=self.lastmotorpos
+            if not self.isforwardfunc():
+                tallydiff = -tallydiff
+            self.lastmotorpos+=tallydiff / self.ticksperrev
+            self.lasttallyread=tallyr
+            self.lasttallydiff=tallydiff
+            yield(self.lastmotorpos)

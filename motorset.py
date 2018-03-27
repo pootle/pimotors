@@ -2,6 +2,7 @@
 
 import time
 import logger
+import atexit
 
 class motorset():
     """
@@ -29,6 +30,7 @@ class motorset():
         for mdef in motordefs:
             mot=logger.makeClassInstance(parent=self, **mdef)
             self.motors[mot.name]=mot
+            atexit.register(self.close)
 
     def needservice(self, sname, className, **servargs):
         """
@@ -86,13 +88,13 @@ class motorset():
     def motorSpeedLimits(self, mlist=None):
         return self._listcall(mlist, 'speedLimits')
 
-    def motorTargetSpeed(self, speed, mlist=None):
+    def motorSpeed(self, speed, mlist=None):
         """
         returns and optionally sets the target rpm of the given set of motors (see class help for mlist param)
         
         See the motor class for details of the speed param.
         """
-        return self._listcall(mlist, 'targetSpeed', speed)
+        return self._listcall(mlist, 'speed', speed)
 
     def stopMotor(self, mlist=None):
         """

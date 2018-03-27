@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 """ 
-definition file for 2 H bridge motors directly controlled via gpio pins. 'left' and 'right'.
+definition file for 2 H bridge motors directly controlled via gpio pins. The motors are 'left' and 'right'.
 
 The motors can have rotary encoders and can use a speed mapping table to provide something approaching a linear response.
 
@@ -19,7 +19,7 @@ There are currently 2 similar classes that can be used:
 The motor and motoranalyse classes:
     className       : The name of the class to instantiate for this motor. See className in the details below.
 
-    nameccccc       : The name of the motor. Used in all further access to the motor within the motorset.
+    name            : The name of the motor. Used in all further access to the motor within the motorset.
     
     mdrive          : The class that takes care of the low level interface to the motor - typically defined by the hardware in use, and the way in which 
                         it is connected (direct gpio, through a HAT accessed through I2C, ...)
@@ -42,11 +42,11 @@ motordef=(
      'name'         : 'left',
      'mdrive'       : {'className': 'dc_h_bridge_pigpio.dc_h_bridge', 'pinf':26, 'pinb':21, 'invert': True},
      'rotationsense': {'className': 'quadencoder.quadencoder', 'pinss': ((17, 27)), 'edges': 'both', 'pulsesperrev':3},
-     'speedmapinfo': {'className':'dcmotorbasic.speedmapper', 
-                      'fbuilder': {'minSpeed':1500, 'maxSpeed':13000, 'minDC':20, 'maxDC':255},
-                      'rbuilder': {'minSpeed':1500, 'maxSpeed':13000, 'minDC':20, 'maxDC':255}},
+     'speedmapinfo':  {'className': 'dcmotorbasic.speedmapper', 
+                       'fbuilder': {'minSpeed':1500, 'maxSpeed':13000, 'minDC':20, 'maxDC':255},
+                       'rbuilder': {'minSpeed':1500, 'maxSpeed':13000, 'minDC':20, 'maxDC':255}},
+     'feedback'     : {'className': 'feedback.PIDfeedback', 'Pfact': 0, 'Ifact':0, 'Dfact':0},
      'logtypes'     : (('phys',{'filename': 'leftlog.txt',  'format': '{setting} is {newval}.'}),),
-
      },
     {
      'className'    : 'motoranalyser.motoranalyse',
@@ -54,9 +54,9 @@ motordef=(
      'name'         : 'right',
      'mdrive'       : {'className': 'dc_h_bridge_pigpio.dc_h_bridge', 'pinf':20, 'pinb':19},
      'rotationsense': {'className': 'quadencoder.quadencoder', 'pinss': ((9, 10)), 'edges': 'both', 'pulsesperrev':3},
-     'speedmapinfo' : {'className':'dcmotorbasic.speedmapper', 
-                      'fbuilder': {'minSpeed':1500, 'maxSpeed':13000, 'minDC':20, 'maxDC':255},
-                      'rbuilder': {'minSpeed':1500, 'maxSpeed':13000, 'minDC':20, 'maxDC':255}},
+     'speedmapinfo' : {'className': 'dcmotorbasic.speedmapper', 
+                       'fbuilder': {'minSpeed':1500, 'maxSpeed':13000, 'minDC':20, 'maxDC':255},
+                       'rbuilder': {'minSpeed':1500, 'maxSpeed':13000, 'minDC':20, 'maxDC':255}},
      'logtypes'     : (('phys',{'filename': 'rightlog.txt',  'format': '{setting} is {newval}.'}),),
     },
 )

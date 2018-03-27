@@ -154,7 +154,7 @@ motorfields=(
                 'selectmap': (('none', 'no action'),('findMaxrpm','max rpm'), ('mapdcToRPM', 'map dc to speed'), ('mapSpeed', 'test speed map')),
                 'returncallback': 'doMotorAction', 'cbparams': {'motors':'x', }},
     {'name':'mspeed' , 'fclass':speedr,'lineno':'=mspeedl','colno':14, 'style': 'output', 'format': '{:^15.3f}','value':100, 'atts': 'th',
-                'valuecallback': updatemotorlist, 'cbparams': {'motors':'x', 'funcname': 'motorTargetSpeed'}},
+                'valuecallback': updatemotorlist, 'cbparams': {'motors':'x', 'funcname': 'motorSpeed'}},
 )
 
 mcols=[14,33,52]
@@ -212,7 +212,7 @@ class tester(motorset.motorset):
             if mtype=='motoranalyse':
                 self.dp.setFieldAtt('manal%s' % mname, 'h', False)
                 self.dp.setFieldAtt('manall', 's', False)
-            if not self.motorTargetSpeed(None, mname) is None:
+            if not self.motorSpeed(None, mname) is None:
                 self.dp.setFieldAtt('mspeedl', 'h', False)
                 self.dp.setFieldAtt('mspeed%s' % mname, 'h', False)
                 speedfb, speedmb, speedmf, speedff=self.motorSpeedLimits(mname)

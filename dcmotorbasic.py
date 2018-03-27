@@ -8,6 +8,7 @@ This method using pigpio has a constant cpu load of ~10% on a raspberry pi Zero,
 a constant cpu load of ~20%.
 """
 import logger
+import time
 
 class motor(logger.logger):
     """
@@ -15,15 +16,20 @@ class motor(logger.logger):
     
     The driver class takes care of both the interface to motor hardware and some physical characteristics of the motor.
     
-    It also accepts an optional motor sensor (e.g. a quadrature encoder) which will maintain the motor's position.
+    This class also accepts an optional motor sensor (e.g. a quadrature encoder) which will maintain the motor's position.
     
-    If a feedback sensor is used, the ticker method must be called at (reasonably) regular intervals (typically 10 - 50 times per second)
-    so the sensor can maintain info about the motors position etc.
+    If a feedback sensor is used, the ticker method must be called at (reasonably) regular intervals 
+    (typically 10 - 50 times per second) so the sensor can maintain info about the motors position etc.
+    
+    This class provides motor control at a number of levels, starting from direct low level physical control, to controls 
+    which set targets and use feedback to match the target as closely as possible. (this last is WIP)
+    
+    Each level builds on the preceeding level, and lower level calls should not be used.
 
     """
     physlogso=('phys', {'filename': 'stdout', 'format': '{setting} is {newval}.'})
 
-    def __init__(self, mdrive, rotationsense=None, speedmapinfo=None, **kwargs):
+    def __init__(self, mdrive, rotationsense=None, speedmapinfo=None, feedback=None, **kwargs):
         """
         Initialises a single motor, low level interfacing is handled by the driver specified in mdrive
 
@@ -31,27 +37,43 @@ class motor(logger.logger):
 
         rotationsense   : optional params for class instance to handle the motor feedback sensor
         
-        speedmapinfo: params for making speedmappers - see speedmapper class below (or whatever other class you use
+        speedmapinfo    : optional params for making speedmappers - see speedmapper class below (or whatever other class you use)
+
+        feedback        : optional params for feedback control - optional and (for this class) only allowed if rotationsense also specified
 
         **kwargs    : allows other arbitrary keyword parameters to be ignored / passed to the super class.
         
-        self.motorforward is the last direction the motor was driven. It helps the fbmotorclass keep track of the motors position.
-        Even if the motor speed is now zero this 
+        self.motorforward is the last direction the motor was driven. It helps the feedback keep track of the motors position.
+        Even if the motor speed is now zero this wil show which way the motor might still be moving.
+       
         """
         super().__init__(createlogmsg=False, **kwargs)
+        self.tickacts=[] # a list of all the things that need to happen each tick - see addTicker below
         self.mdrive=logger.makeClassInstance(parent=self, **mdrive)
         if rotationsense is None:
             self.motorpos=None
+            self.postick=None
         else:
-            self.motorpos=logger.makeClassInstance(parent=self, **rotationsense)
-        if not self.motorpos is None:
-            self.motorpos.setforwardfunc(self.isforward)
+            self.motorpos=logger.makeClassInstance(parent=self, isforward=self.isforward, **rotationsense)
+            self.postick=iter(self.motorpos)
         self.motorforward=True
         self.speedmap=None if speedmapinfo is None else logger.makeClassInstance(invert=self.mdrive.invert(None), **speedmapinfo)
-        self.requestedSpeed=0
+        self.feedbackcontrol=None if feedback is None or self.postick is None else logger.makeClassInstance(timenow=time.time(), **feedback)
+        self.currSpeed=0
         self.longactfunc=None
         self.logCreate()
         self.stop()
+
+    def doticker(self,msg, count):
+        """
+        ticker test code
+        """
+        ctr=0
+        while ctr< count:
+            yield()
+            print(self.name, msg,ctr)
+            ctr+=1
+        print(self.name, msg,'DONE')
 
     def needservice(self, **kwargs):
         return self.parent.needservice(**kwargs)
@@ -120,7 +142,10 @@ class motor(logger.logger):
         if self.speedmap is None:
             self.DC(0)
         else:
-            self.targetSpeed(0) # this will eventually set DC to zero as well
+            self.speed(0) # this will eventually set DC to zero as well
+
+    def maxDC(self):
+        return self.mdrive.maxDC()
 
     def DC(self, dutycycle):
         """
@@ -134,9 +159,6 @@ class motor(logger.logger):
             self.motorforward=appliedval > 0
         self.log(ltype='phys', setting='dutycycle', newval=abs(appliedval))
         return appliedval
-
-    def maxDC(self):
-        return self.mdrive.maxDC()
 
     def frequency(self, frequency):
         """
@@ -158,9 +180,9 @@ class motor(logger.logger):
             return None
         return self.speedmap.speedLimits()      
 
-    def targetSpeed(self, speed):
+    def speed(self, speed):
         """
-        returns and optionally sets the current target speed.
+        returns and optionally sets the current speed.
         
         This provides an approximately linear way to drive the motor, i.e. the motor rpm should be a simple ratio of the speed
         parameter to this call.
@@ -169,9 +191,9 @@ class motor(logger.logger):
         
         This uses the lookup table in self.speedtabf and self.speedtabb. See speedmapper class for an explanation.
         
-        Note that the units here are arbitrary, but the PID feedback control values are implicitly linked with these units.
+        Note that the units here are arbitrary, but for feedback control it should be shaft rpm.
         
-        speed   : the requested (target) speed
+        speed   : the requested speed
         
         returns : None if speed mapping not supported here else the actual value set (it is clamped by the speedmapper)
         """
@@ -179,24 +201,101 @@ class motor(logger.logger):
             return None
         if not speed is None:
             fr, dc, appliedspeed =self.speedmap.speedToFDC(speed)
-            self.requestedSpeed=appliedspeed if speed >=0 else -appliedspeed
-            self.log(ltype='phys', setting='speed', newval=self.requestedSpeed)
+            self.currSpeed=appliedspeed
+            self.log(ltype='phys', setting='speed', newval=self.currSpeed)
             self.frequency(fr)
             self.DC(-dc if speed < 0 else dc)
-        return self.requestedSpeed
+        return self.currSpeed
+
+
+#            else:
+#                if self.currTargetSpeed is None:
+#                    # we're starting /  restarting so grab current actual location and set target pos as actual pos
+#                    fr, dc, appliedspeed =self.speedmap.speedToFDC(speed)
+#                    self.currTargetPos=self.motorpos.lastmotorpos
+#                    self.currTargetSpeed=appliedspeed if speed >=0 else -appliedspeed
+#                    self.appliedSpeed=self.currTargetSpeed
+#                else:
+#                    # already in feedback mode so adjust speed instead
+##                    #first clamp the requested speed
+#                    cspeed=self.speedmap.speedClamp(speed)
+#                    speedadjust=cspeed-self.currTargetSpeed
+#                    fr, dc, appliedspeed =self.speedmap.speedToFDC(self.appliedSpeed+speedadjust)
+#                    self.currTargetSpeed=cspeed
+#                    self.appliedspeed=appliedspeed
+
+
+    def addTicker(self, tickgen, tickID, ticktick, priority):
+        """
+        Various functions need to be run on a regular basis.
+        
+        ticker functions are written as generators, this allows them to be written as if they run continuously, making 
+        the code easier to understand and the invocation much more efficient. Also the generator can gracefully exit
+        when complete.
+        
+        The list (which is ordered) is processed in sequence each tick.
+        
+        tickgen  : a generator that will be called each tick (of this ticker) 
+        
+        tickID   : some ID for the ticker to uniquely identify it
+        
+        ticktick : number of top level ticks (i.e. calls of ticker below) between calls of this ticker. prime numbers are good!)
+        
+        priority : the lower the number the higher up the list
+        
+        Each entry in the list is a little dict for ease of understanding:
+            'g'  : the generator we got by calling tickfunc
+            'tid': the tickID
+            'ttc : the tick count per tick of this ticker
+            'tc' : current countdown
+            'pr' : priority of this ticker
+        """
+        ta={'g'  : tickgen,
+            'tid': tickID,
+            'ttc': ticktick,
+            'tc' : ticktick,
+            'pr' : priority}
+        for ti, t in enumerate(self.tickacts):
+            if t['pr'] > priority:
+                self.tickacts.insert[ti+1]
+                break
+        else:
+            #we reached the end
+            print('add', tickID, 'at end')
+            self.tickacts.append(ta)
 
     def ticker(self):
         """
         called as a regular tick (typically 5 - 50 per second) from some higher place, this updates sensor info (if available) and
         invokes any long term (e.g. multiple tick) operations.
         """
-        if not self.motorpos is None:
-            self.motorpos.tick()
-        if not self.longactfunc is None:
+        if not self.postick is None:
+            posnow=next(self.postick)
+#            if not self.feedbackcontrol is None and not self.currTargetSpeed is None:
+#                # use last pos and speed to calculate where we should be now.......
+ #               targetposnow=self.currTargetPos+self.currTargetSpeed*self.motorpos.lasttallyinterval
+#                poserror=posnow-targetposnow
+#                adjust=self.feedbackcontrol.ticker(self.motorpos.lasttallytime, poserror)
+#                newapplied=self.appliedspeed+adjust
+#                fr, dc, appliedspeed = self.speedmap.speedToFDC(newapplied)
+#                self.appliedspeed=appliedspeed
+#                self.frequency(fr)
+#                self.DC(-dc if appliedspeed < 0 else dc)
+
+        if not self.longactfunc is None: #this is legacy  and things using it should convert to tickers
             newstate=self.longactfunc(self.longactstate)
             if newstate==None:
                 self.longactfunc=None
             self.longactstate=newstate
+        
+        for ti, t in enumerate(self.tickacts):
+            t['tc'] -=1
+            if t['tc']<=0:
+                try:
+                    next(t['g'])
+                except StopIteration:
+                    self.tickacts.pop(ti)
+                t['tc']=t['ttc']
 
     def odef(self):
         """
@@ -253,6 +352,34 @@ class speedmapper():
         The units are arbitrary, and depend on how the speedtable is defined.        
         """
         return -self.maxSpeedb, -self.minSpeedb, self.minSpeedf, self.maxSpeedf
+
+    def speedClamp(self, speed):
+        """
+        Clamps the speed to be <= max speed (in each direction) and also returns zero if < min speed in either direction.
+        
+        speed : some speed or other
+        
+        returns: a valid speed - zero or between min and max in each direction
+        """
+        fwd=speed >=0
+        if self.invert:
+            fwd = not fwd
+        aspeed = abs(speed)
+        if fwd:
+            if aspeed < self.minSpeedf:
+                cspeed = 0
+            elif aspeed > self.maxSpeedf:
+                cspeed = self.maxSpeedf
+            else:
+                cspeed = aspeed
+        else:
+            if aspeed < self.minSpeedb:
+                cspeed = 0
+            elif aspeed > self.maxSpeedb:
+                cspeed = self.maxSpeedb
+            else:
+                cspeed = aspeed
+        return cspeed if speed >=0 else -cspeed
 
     def speedToFDC(self, speed):
         """
