@@ -66,7 +66,7 @@ def classrunner(wrappedClassName, ticktime, procend, kwacktimeout=None, timeoutf
             if r:
                 lastincoming=tnow
                 mname, sync, rid, kwargs = procend.recv()
-                print('reseting lastincoming for ' + sync)
+#                print('reseting lastincoming for', sync, mname)
                 if mname is None:
                     if sync=='k':
                         pass # trivial no-op just to reset the keep awake timer
@@ -95,6 +95,7 @@ def classrunner(wrappedClassName, ticktime, procend, kwacktimeout=None, timeoutf
                                 exc_type, exc_value, exc_traceback = sys.exc_info()
                                 procend.send(('MethodException', 
                                     str(exc_type) + '\n' + str(exc_value) + '\n' + ''.join(traceback.format_tb(exc_traceback)), rid))
+#                                raise
                             if sync == 'e':
                                 running=False
                         else:
@@ -103,11 +104,9 @@ def classrunner(wrappedClassName, ticktime, procend, kwacktimeout=None, timeoutf
         else:
             if not kwacktimeout is None and time.time()>(lastincoming+kwacktimeout):
                 tmeth=getattr(ci, timeoutfunction)
-                print('timeout calls', tmeth)
+#                print('timeout calls', tmeth)
                 tmeth()
                 lastincoming=time.time()+3
-#            else:
-#                print('zzzzzzzzzzzzz', kwacktimeout, (lastincoming+kwacktimeout)-time.time())
             ci.ticker()
             tickcount+=1
             nexttime+=ticktime
@@ -190,7 +189,7 @@ class runAsProcess(logger.logger):
 
     def sendkwac(self):
         if self.running:
-            print('webserve sending kwac')
+#            print('webserve sending kwac')
             self.stubendpipe.send((None,'k',self.msgOutCount,None))
             self.msgOutCount+=1
 

@@ -446,7 +446,7 @@ class display():
         updates 1 attribute of the named field (by calling its setAtt method), sets the linechanged flag if appropriate so update screen
         the next time show is called
         """
-        assert fname in self.fields
+        assert fname in self.fields, 'did not find field %s in fieldlist' % fname
         f=self.fields[fname]
         if f.setAtt(schar, avalue):
             self.lineschanged[f.lno][1]=True

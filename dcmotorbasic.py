@@ -25,7 +25,26 @@ class motor(logger.logger):
     which set targets and use feedback to match the target as closely as possible. (this last is WIP)
     
     Each level builds on the preceeding level, and lower level calls should not be used.
+    
+    Base level:
+        Should always be available.
 
+        DC          : sets / returns the dutycycle (typically in 255ths). Values outside the range +/-maxDC are clamped.
+        frequency   : sets / returns the frequency used (how many on pulses per second
+        maxDC       : returns the maximum value for DC. Values between -maxDC and +maxDC are valid.
+    
+    Intermediate level:
+        Only available if a speedmapper is set up - see speedLimits below.
+
+        speed       : This attempts to provide a linear response. The units are arbitrary. Requires a speedmapper to
+                        be setup. 
+        speedLimits : returns None if speed interface is not available. Otherwise returns the valid ranges for speed
+                        (values close to zero can be blocked if the motor does not handle them well.
+
+    Best level:
+        Only available if speed mapper, feedback sensor, and feedback handler are set up.
+
+        targetSpeed : Attempts to accurately maintain the motor's speed and revolutions.
     """
     physlogso=('phys', {'filename': 'stdout', 'format': '{setting} is {newval}.'})
 
@@ -58,22 +77,12 @@ class motor(logger.logger):
             self.postick=iter(self.motorpos)
         self.motorforward=True
         self.speedmap=None if speedmapinfo is None else logger.makeClassInstance(invert=self.mdrive.invert(None), **speedmapinfo)
-        self.feedbackcontrol=None if feedback is None or self.postick is None else logger.makeClassInstance(timenow=time.time(), **feedback)
         self.currSpeed=0
+        self.feedbackcontrol=None if feedback is None or self.postick is None else logger.makeClassInstance(timenow=time.time(), **feedback)
+        self.targSpeed=0
         self.longactfunc=None
         self.logCreate()
         self.stop()
-
-    def doticker(self,msg, count):
-        """
-        ticker test code
-        """
-        ctr=0
-        while ctr< count:
-            yield()
-            print(self.name, msg,ctr)
-            ctr+=1
-        print(self.name, msg,'DONE')
 
     def needservice(self, **kwargs):
         return self.parent.needservice(**kwargs)
@@ -176,6 +185,9 @@ class motor(logger.logger):
         return nf
 
     def speedLimits(self):
+        """
+        See speedmapper.speedLimits below. 
+        """
         if self.speedmap is None:
             return None
         return self.speedmap.speedLimits()      
@@ -206,6 +218,17 @@ class motor(logger.logger):
             self.frequency(fr)
             self.DC(-dc if speed < 0 else dc)
         return self.currSpeed
+
+    def targetSpeed(self, speed):
+        """
+        sets a target speed for the motor. This attempts to accurately maintain the motor's speed and count of revolutions.
+        """
+        if self.feedbackcontrol is None:
+            return None
+        elif speed is None:
+            return self.targSpeed
+        else:
+            x=17/0
 
 
 #            else:
@@ -261,7 +284,6 @@ class motor(logger.logger):
                 break
         else:
             #we reached the end
-            print('add', tickID, 'at end')
             self.tickacts.append(ta)
 
     def ticker(self):
@@ -302,7 +324,7 @@ class motor(logger.logger):
         This should return the info needed to recreate an identical motor
         """
         x=super().odef()
-        x.update({'mdrive': self.mdrive.odef(), 'speedtable': {'f': self.speedtabf, 'b':self.speedtabb}})
+        x.update({'mdrive': self.mdrive.odef(), }) #'speedtable': {'f': self.speedtabf, 'b':self.speedtabb}})
         return x
 
 class speedmapper():

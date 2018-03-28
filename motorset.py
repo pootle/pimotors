@@ -96,6 +96,14 @@ class motorset():
         """
         return self._listcall(mlist, 'speed', speed)
 
+    def motorTargetSpeed(self, tspeed, mlist=None):
+        """
+        when motor feedback is available with a feedback controller, we can set a target speed.
+
+        see motor class for details
+        """
+        return self._listcall(mlist, 'targetSpeed', tspeed)
+
     def stopMotor(self, mlist=None):
         """
         stops specified motors (see class help for mlist param)

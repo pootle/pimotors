@@ -94,32 +94,39 @@ def updatemotorlist(motors, funcname, value):
     resu=getattr(m, funcname)(value, motors)
     return resu
 
+def updatePIDfacts(motors):
+    pass
+
 def1=(
-#    {'name':'dmon'   , 'fclass':  df    ,'lineno': 0,'colno':20, 'style': 'label', 'format': 'last key:{:4s} hex:{:12s}','value':('',''), 'fmode':'*'},
-    {'name':'title'  , 'fclass':  df    ,'lineno': 1,'colno':0 , 'style': 'label', 'format': '{:^32}', 'value':'pootles likkle app'},
-    {'name':'cnote'  , 'fclass':  df    ,'lineno': 1,'colno':34, 'style': 'label', 'format': 'cc:{:3d}.', 'value':1},
-    {'name':'onote'  , 'fclass':  df    ,'lineno': 1,'colno':44, 'style': 'label', 'format': 'or:{:3d}.', 'value':0},
-    {'name':'clock'  , 'fclass':  df    ,'lineno': 1,'colno':54, 'style': 'label', 'format': '{:02d}:{:2d}:{:2d}', 'value':(0,0,0), 'fmode': '*'},
-    {'name':'m0'     , 'fclass':  df    ,'lineno': 2,'colno':1 , 'style': 'label', 'format': None, 'value':'e'},
-    {'name':'m0z'    , 'fclass':  df    ,'lineno': 2,'colno':2 , 'style': 'label', 'format': None, 'value':'X', 'atts': 'u'},
-    {'name':'m0y'    , 'fclass':  df    ,'lineno': 2,'colno':3 , 'style': 'label', 'format': None, 'value':'it'},
-    {'name':'m1z'    , 'fclass':  df    ,'lineno': 2,'colno':6 , 'style': 'label', 'format': None, 'value':'A', 'atts': 'u'},
-    {'name':'m1y'    , 'fclass':  df    ,'lineno': 2,'colno':7 , 'style': 'label', 'format': None, 'value':'dd motor'},
-    {'name':'mnamel' , 'fclass':  df    ,'lineno': 4,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'motor name'},
-    {'name':'mtypel' , 'fclass':  df    ,'lineno': 5,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'motor type'},
-    {'name':'mdrvtl' , 'fclass':  df    ,'lineno': 6,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'driver'},
-    {'name':'mrevsl' , 'fclass':  df    ,'lineno': 7,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'rev speeds','atts': 's'},
-    {'name':'mfwdsl' , 'fclass':  df    ,'lineno': 8,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'fwd speeds','atts': 's'},
-    {'name':'mfrequl', 'fclass':  df    ,'lineno': 9,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'frequency'},
-    {'name':'mdutyl' , 'fclass':  df    ,'lineno': 10,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'duty cycle'},
-    {'name':'minvl'  , 'fclass':  df    ,'lineno': 11,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'reverse'},
-    {'name':'mposnl' , 'fclass':  df    ,'lineno':12,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'position','atts': 's'},
-    {'name':'mrpml'  , 'fclass':  df    ,'lineno':13,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'RPM','atts': 's'},
-    {'name':'manall' , 'fclass':  df    ,'lineno':14,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'motor test', 'atts': 's'},
-    {'name':'mspeedl', 'fclass':  df    ,'lineno':15,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'target rpm', 'atts': 's'},
+#    {'name':'dmon'    , 'fclass':  df    ,'lineno':  0,'colno':20, 'style': 'label', 'format': 'last key:{:4s} hex:{:12s}','value':('',''), 'fmode':'*'},
+    {'name':'title'   , 'fclass':  df    ,'lineno':  1,'colno':0 , 'style': 'label', 'format': '{:^32}', 'value':'pootles likkle app'},
+    {'name':'cnote'   , 'fclass':  df    ,'lineno':  1,'colno':34, 'style': 'label', 'format': 'cc:{:3d}.', 'value':1},
+    {'name':'onote'   , 'fclass':  df    ,'lineno':  1,'colno':44, 'style': 'label', 'format': 'or:{:3d}.', 'value':0},
+    {'name':'clock'   , 'fclass':  df    ,'lineno':  1,'colno':54, 'style': 'label', 'format': '{:02d}:{:2d}:{:2d}', 'value':(0,0,0), 'fmode': '*'},
+    {'name':'m0'      , 'fclass':  df    ,'lineno':  2,'colno':1 , 'style': 'label', 'format': None, 'value':'e'},
+    {'name':'m0z'     , 'fclass':  df    ,'lineno':  2,'colno':2 , 'style': 'label', 'format': None, 'value':'X', 'atts': 'u'},
+    {'name':'m0y'     , 'fclass':  df    ,'lineno':  2,'colno':3 , 'style': 'label', 'format': None, 'value':'it'},
+    {'name':'m1z'     , 'fclass':  df    ,'lineno':  2,'colno':6 , 'style': 'label', 'format': None, 'value':'A', 'atts': 'u'},
+    {'name':'m1y'     , 'fclass':  df    ,'lineno':  2,'colno':7 , 'style': 'label', 'format': None, 'value':'dd motor'},
+    {'name':'mnamel'  , 'fclass':  df    ,'lineno':  4,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'motor name'},
+    {'name':'mtypel'  , 'fclass':  df    ,'lineno':  5,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'motor type'},
+    {'name':'mdrvtl'  , 'fclass':  df    ,'lineno':  6,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'driver'},
+    {'name':'mrevsl'  , 'fclass':  df    ,'lineno':  7,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'rev speeds','atts': 's'},
+    {'name':'mfwdsl'  , 'fclass':  df    ,'lineno':  8,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'fwd speeds','atts': 's'},
+    {'name':'mfrequl' , 'fclass':  df    ,'lineno':  9,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'frequency'},
+    {'name':'mdutyl'  , 'fclass':  df    ,'lineno': 10,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'duty cycle'},
+    {'name':'minvl'   , 'fclass':  df    ,'lineno': 11,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'reverse'},
+    {'name':'mposnl'  , 'fclass':  df    ,'lineno': 12,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'position','atts': 's'},
+    {'name':'mrpml'   , 'fclass':  df    ,'lineno': 13,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'RPM','atts': 's'},
+    {'name':'manall'  , 'fclass':  df    ,'lineno': 14,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'motor test', 'atts': 's'},
+    {'name':'mspeedl' , 'fclass':  df    ,'lineno': 15,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'set rpm', 'atts': 's'},
+    {'name':'mfpropl' , 'fclass':  df    ,'lineno': 16,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'Prop fact', 'atts': 's'},
+    {'name':'mfintegl', 'fclass':  df    ,'lineno': 17,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'Integ fact', 'atts': 's'},
+    {'name':'mfderivl', 'fclass':  df    ,'lineno': 18,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'Deriv fact', 'atts': 's'},
+    {'name':'mfspeedl', 'fclass':  df    ,'lineno': 19,'colno':0 , 'style': 'label', 'format': '{:>12.12s}:', 'value':'PID rpm', 'atts': 's'},
     
-    {'name':'inlab'  , 'fclass':  df    ,'lineno':16,'colno':0 , 'style': 'label', 'format': '{:>20s}:', 'value':''},
-    {'name':'inval'  , 'fclass':  df    ,'lineno':16,'colno':22, 'style': 'nonactinp', 'format': None, 'value':''}
+    {'name':'inlab'  , 'fclass':  df    ,'lineno':20,'colno':0 , 'style': 'label', 'format': '{:>20s}:', 'value':''},
+    {'name':'inval'  , 'fclass':  df    ,'lineno':20,'colno':22, 'style': 'nonactinp', 'format': None, 'value':''}
 )
 
 jointfields=(
@@ -154,6 +161,14 @@ motorfields=(
                 'selectmap': (('none', 'no action'),('findMaxrpm','max rpm'), ('mapdcToRPM', 'map dc to speed'), ('mapSpeed', 'test speed map')),
                 'returncallback': 'doMotorAction', 'cbparams': {'motors':'x', }},
     {'name':'mspeed' , 'fclass':speedr,'lineno':'=mspeedl','colno':14, 'style': 'output', 'format': '{:^15.3f}','value':100, 'atts': 'th',
+                'valuecallback': updatemotorlist, 'cbparams': {'motors':'x', 'funcname': 'motorSpeed'}},
+    {'name':'mfprop' , 'fclass':speedr,'lineno':'=mfpropl','colno':14, 'style': 'output', 'format': '{:^15.3f}','value':0, 'atts': 'th',
+                'valuecallback': updatePIDfacts, 'cbparams': {'motors':'x', 'funcname': 'motorSpeed'}},
+    {'name':'mfinteg' , 'fclass':speedr,'lineno':'=mfintegl','colno':14, 'style': 'output', 'format': '{:^15.3f}','value':0, 'atts': 'th',
+                'valuecallback': updatePIDfacts, 'cbparams': {'motors':'x', 'funcname': 'motorSpeed'}},
+    {'name':'mfderiv' , 'fclass':speedr,'lineno':'=mfderivl','colno':14, 'style': 'output', 'format': '{:^15.3f}','value':0, 'atts': 'th',
+                'valuecallback': updatePIDfacts, 'cbparams': {'motors':'x', 'funcname': 'motorSpeed'}},
+    {'name':'mfspeed' , 'fclass':speedr,'lineno':'=mfspeedl','colno':14, 'style': 'output', 'format': '{:^15.3f}','value':0, 'atts': 'th',
                 'valuecallback': updatemotorlist, 'cbparams': {'motors':'x', 'funcname': 'motorSpeed'}},
 )
 
@@ -213,7 +228,7 @@ class tester(motorset.motorset):
                 self.dp.setFieldAtt('manal%s' % mname, 'h', False)
                 self.dp.setFieldAtt('manall', 's', False)
             if not self.motorSpeed(None, mname) is None:
-                self.dp.setFieldAtt('mspeedl', 'h', False)
+                self.dp.setFieldAtt('mspeedl', 's', False)
                 self.dp.setFieldAtt('mspeed%s' % mname, 'h', False)
                 speedfb, speedmb, speedmf, speedff=self.motorSpeedLimits(mname)
                 self.dp.setFieldAtt('mrevsl', 's', False)
@@ -222,6 +237,15 @@ class tester(motorset.motorset):
                 self.dp.setFieldAtt('mfwds%s' % mname, 'h', False)
                 self.dp.updateFieldValue('mrevs%s' % mname, (speedfb, speedmb))
                 self.dp.updateFieldValue('mfwds%s' % mname, (speedmf, speedff))
+            if not self.motorTargetSpeed(None, mname) is None:
+                self.dp.setFieldAtt('mfpropl', 's', False)
+                self.dp.setFieldAtt('mfintegl', 's', False)
+                self.dp.setFieldAtt('mfderivl', 's', False)
+                self.dp.setFieldAtt('mfspeedl', 's', False)
+                self.dp.setFieldAtt('mfprop%s' % mname, 'h', False)
+                self.dp.setFieldAtt('mfinteg%s' % mname, 'h', False)
+                self.dp.setFieldAtt('mfderiv%s' % mname, 'h', False)
+                self.dp.setFieldAtt('mfspeed%s' % mname, 'h', False)
         if len(motnames) > 0:
             jcol=mcols[len(motnames)]
             for f in jointfields:
