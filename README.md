@@ -22,8 +22,7 @@ A Raspberry pi is quite fast enough to control and monitor motors running up to 
 # setup
 This all runs on Raspberry Pi 2x and 3x as well as Pi Zero. It also runs on raspbian lite (i.e. the command line only version)
 
-* enable i2c
 * start the pigpio daemon
-* if using the adafruit dc and stepper motor HAT, [install the adafruit libraries for the HAT](https://learn.adafruit.com/adafruit-dc-and-stepper-motor-hat-for-raspberry-pi/installing-software).
+* if using the adafruit dc and stepper motor HAT, [install the adafruit libraries for the HAT](https://learn.adafruit.com/adafruit-dc-and-stepper-motor-hat-for-raspberry-pi/installing-software) and enable i2c.
 * clone this repository
 * in the folder: **python3 main.py <config file>**

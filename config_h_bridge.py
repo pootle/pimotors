@@ -45,7 +45,7 @@ motordef=(
      'speedmapinfo':  {'className': 'dcmotorbasic.speedmapper', 
                        'fbuilder': {'minSpeed':1500, 'maxSpeed':13000, 'minDC':20, 'maxDC':255},
                        'rbuilder': {'minSpeed':1500, 'maxSpeed':13000, 'minDC':20, 'maxDC':255}},
-     'feedback'     : {'className': 'feedback.PIDfeedback', 'Pfact': 0, 'Ifact':0, 'Dfact':0},
+     'feedback'     : {'className': 'feedback.PIDfeedback', 'Pfact': -500, 'Ifact':0, 'Dfact':-100},
      'logtypes'     : (('phys',{'filename': 'leftlog.txt',  'format': '{setting} is {newval}.'}),),
      },
     {

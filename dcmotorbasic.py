@@ -79,7 +79,7 @@ class motor(logger.logger):
         self.speedmap=None if speedmapinfo is None else logger.makeClassInstance(invert=self.mdrive.invert(None), **speedmapinfo)
         self.currSpeed=0
         self.feedbackcontrol=None if feedback is None or self.postick is None else logger.makeClassInstance(timenow=time.time(), **feedback)
-        self.targSpeed=0
+        self.targSpeed=None
         self.longactfunc=None
         self.logCreate()
         self.stop()
@@ -223,30 +223,28 @@ class motor(logger.logger):
         """
         sets a target speed for the motor. This attempts to accurately maintain the motor's speed and count of revolutions.
         """
-        if self.feedbackcontrol is None:
+        if self.feedbackcontrol is None:    # can we do this?
             return None
-        elif speed is None:
+        elif speed is None or speed==self.targSpeed: # if no new speed or speed unchanged, just return current speed
             return self.targSpeed
-        else:
-            x=17/0
 
+        if self.targSpeed is None:
+            self.feedbackcontrol.reset(self.motorpos.lasttallytime,0)
+            facts=self.feedbackcontrol.factors()
+            self.fbtrace={'motor': self.name, 'ltype': 'feedbacktrace', 'runid':time.time(), 'Pf':facts[0], 'If':facts[1], 'Df':facts[2],
+                     'tstamp':0, 'targetSpeed':0, 'speed':0, 'tallyinterval':0, 'motorpos':0, 'error':0, 'adjust':0,
+                     'expectchange':0, 'actualchange':0}
 
-#            else:
-#                if self.currTargetSpeed is None:
-#                    # we're starting /  restarting so grab current actual location and set target pos as actual pos
-#                    fr, dc, appliedspeed =self.speedmap.speedToFDC(speed)
-#                    self.currTargetPos=self.motorpos.lastmotorpos
-#                    self.currTargetSpeed=appliedspeed if speed >=0 else -appliedspeed
-#                    self.appliedSpeed=self.currTargetSpeed
-#                else:
-#                    # already in feedback mode so adjust speed instead
-##                    #first clamp the requested speed
-#                    cspeed=self.speedmap.speedClamp(speed)
-#                    speedadjust=cspeed-self.currTargetSpeed
-#                    fr, dc, appliedspeed =self.speedmap.speedToFDC(self.appliedSpeed+speedadjust)
-#                    self.currTargetSpeed=cspeed
-#                    self.appliedspeed=appliedspeed
+            self.targSpeed=0
 
+        if self.targSpeed==0:             # just set speed to (hopefully!) something near the right value.
+            self.speed(speed)
+            self.targSpeed=speed
+        else:                             # already running - apply change in target speed to actual speed
+            speedchange=speed-self.targSpeed
+            self.speed(self.currSpeed+speedchange)
+            self.targSpeed=speed
+        return self.targSpeed
 
     def addTicker(self, tickgen, tickID, ticktick, priority):
         """
@@ -293,16 +291,24 @@ class motor(logger.logger):
         """
         if not self.postick is None:
             posnow=next(self.postick)
-#            if not self.feedbackcontrol is None and not self.currTargetSpeed is None:
-#                # use last pos and speed to calculate where we should be now.......
- #               targetposnow=self.currTargetPos+self.currTargetSpeed*self.motorpos.lasttallyinterval
-#                poserror=posnow-targetposnow
-#                adjust=self.feedbackcontrol.ticker(self.motorpos.lasttallytime, poserror)
-#                newapplied=self.appliedspeed+adjust
-#                fr, dc, appliedspeed = self.speedmap.speedToFDC(newapplied)
-#                self.appliedspeed=appliedspeed
-#                self.frequency(fr)
-#                self.DC(-dc if appliedspeed < 0 else dc)
+            if not self.targSpeed is None:
+                mp=self.motorpos
+                expectedposchange=mp.lasttallyinterval*self.targSpeed/60
+                actualposchange  =mp.lastmotorpos-mp.prevmotorpos
+                lasterror=actualposchange-expectedposchange
+                adjust=self.feedbackcontrol.ticker(mp.lasttallytime, lasterror)
+                if True:
+                    self.fbtrace['tstamp']         = self.motorpos.lasttallytime
+                    self.fbtrace['targetSpeed']    = self.targSpeed
+                    self.fbtrace['speed']          = self.currSpeed
+                    self.fbtrace['tallyinterval']  = self.motorpos.lasttallyinterval
+                    self.fbtrace['motorpos']       = self.motorpos.lastmotorpos
+                    self.fbtrace['error']          = lasterror/mp.lasttallyinterval*60
+                    self.fbtrace['adjust']         = adjust
+                    self.fbtrace['expectchange']   = expectedposchange
+                    self.fbtrace['actualchange']   = actualposchange
+                    self.log(**self.fbtrace)
+                self.speed(self.currSpeed+adjust)
 
         if not self.longactfunc is None: #this is legacy  and things using it should convert to tickers
             newstate=self.longactfunc(self.longactstate)

@@ -66,8 +66,8 @@ class PIDfeedback():
         
         errornow : the absolute error at that time - note this is the error in position, not the error in velocity
         """
-        lastinterval= timenow-self.timeprev
-        slope       = errornow-self.errorprev
+        lastinterval    = timenow-self.timeprev
+        slope           = errornow-self.errorprev
         self.errortotal += errornow
         self.errorprev  = errornow
         self.timeprev   = timenow

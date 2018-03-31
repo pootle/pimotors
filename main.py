@@ -63,24 +63,23 @@ class speedr(inpfield):
         if key in ('UPARR', 'DNARR', 'LTARR', 'RTARR', '0', 'x', 'w'):
             dcadj=None
             if key=='UPARR':
-                dcadj=10
+                dcadj=1.3
             elif key=='DNARR':
-                dcadj=-10
+                dcadj=.7
             elif key=='RTARR':
-                dcadj=2
+                dcadj=1.03
             elif key=='LTARR':
-                dcadj=-2
+                dcadj=0.97
             elif key=='0':
                 dcadj=-self.value
             elif key=='w':
                 fmin, fmax=self.parent.getFieldValue('mfwds'+self.vcbp['motors'])
-                dcadj=-self.value+fmin
+                dcadj=-self.value+fmax/2
             elif key=='x':
                 rmax, rmin=self.parent.getFieldValue('mrevs'+self.vcbp['motors'])
-                dcadj=-self.value+rmin
+                dcadj=-self.value+rmax/2
             if not self.vcb is None and not dcadj is None:
                 newval=self.value+dcadj
-                print('--------------',newval)
                 goodval=self.vcb(value=newval, **self.vcbp)
                 if isinstance(goodval, dict):
                     self.parent.setFieldValues('mspeed', values=goodval)
@@ -169,7 +168,7 @@ motorfields=(
     {'name':'mfderiv' , 'fclass':speedr,'lineno':'=mfderivl','colno':14, 'style': 'output', 'format': '{:^15.3f}','value':0, 'atts': 'th',
                 'valuecallback': updatePIDfacts, 'cbparams': {'motors':'x', 'funcname': 'motorSpeed'}},
     {'name':'mfspeed' , 'fclass':speedr,'lineno':'=mfspeedl','colno':14, 'style': 'output', 'format': '{:^15.3f}','value':0, 'atts': 'th',
-                'valuecallback': updatemotorlist, 'cbparams': {'motors':'x', 'funcname': 'motorSpeed'}},
+                'valuecallback': updatemotorlist, 'cbparams': {'motors':'x', 'funcname': 'motorTargetSpeed'}},
 )
 
 mcols=[14,33,52]
@@ -237,7 +236,7 @@ class tester(motorset.motorset):
                 self.dp.setFieldAtt('mfwds%s' % mname, 'h', False)
                 self.dp.updateFieldValue('mrevs%s' % mname, (speedfb, speedmb))
                 self.dp.updateFieldValue('mfwds%s' % mname, (speedmf, speedff))
-            if not self.motorTargetSpeed(None, mname) is None:
+            if not self.motors[mname].feedbackcontrol is None:
                 self.dp.setFieldAtt('mfpropl', 's', False)
                 self.dp.setFieldAtt('mfintegl', 's', False)
                 self.dp.setFieldAtt('mfderivl', 's', False)
@@ -350,5 +349,5 @@ if __name__ == '__main__':
     m=tester(conf.motordef)
     if args.logfile:
         for mot in m.motors.values():
-            mot.addLog('analyser', filename=args.logfile, asdict=0, append=0)
+            mot.addLog('feedbacktrace', filename=args.logfile, asdict=0, append=0)
     m.tickloop(interval=args.tick)
