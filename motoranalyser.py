@@ -44,7 +44,7 @@ class motoranalyse(dcmotorbasic.motor):
                 tallylist=[]
                 timeout=time.time()+interval
                 while mp.lasttallytime < timeout:
-                    yield[]
+                    yield()
                     tallylist.append(mp.lasttallydiff)
                 tps=abs(sum(tallylist)/(mp.lasttallytime-motorstart))
                 rpm=tps/mp.ticksperrev*60

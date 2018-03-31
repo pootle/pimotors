@@ -5,6 +5,9 @@ autonomously.
 
 The existing class does not need to be changed or be aware that this is happening.
 
+The existing class is expected either to be running some sort of polling system, or triggering on other events. In either case
+it must not block for significant periods of time, either in its own execution, or when processing the requests from the stub class. 
+
 A stub class, which inherits from runAsProcess in this module, is required, this acts as a stub, and should provide 
 stub methods that the originating process' code can call as if the class were a normal in-process class.
 
