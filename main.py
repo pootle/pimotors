@@ -61,25 +61,24 @@ class freqf(inpfield):
 class speedr(inpfield):
     def offerkey(self, key):
         if key in ('UPARR', 'DNARR', 'LTARR', 'RTARR', '0', 'x', 'w'):
-            dcadj=None
+            newval=None
             if key=='UPARR':
-                dcadj=1.3
+                newval=1.3*self.value
             elif key=='DNARR':
-                dcadj=.7
+                newval=.7*self.value
             elif key=='RTARR':
-                dcadj=1.03
+                newval=1.03*self.value
             elif key=='LTARR':
-                dcadj=0.97
+                newval=0.97*self.value
             elif key=='0':
-                dcadj=-self.value
+                newval=0
             elif key=='w':
                 fmin, fmax=self.parent.getFieldValue('mfwds'+self.vcbp['motors'])
-                dcadj=-self.value+fmax/2
+                newval=fmin
             elif key=='x':
                 rmax, rmin=self.parent.getFieldValue('mrevs'+self.vcbp['motors'])
-                dcadj=-self.value+rmax/2
-            if not self.vcb is None and not dcadj is None:
-                newval=self.value+dcadj
+                newval=rmin
+            if not self.vcb is None and not newval is None:
                 goodval=self.vcb(value=newval, **self.vcbp)
                 if isinstance(goodval, dict):
                     self.parent.setFieldValues('mspeed', values=goodval)

@@ -213,7 +213,7 @@ class motor(logger.logger):
             return None
         if not speed is None:
             fr, dc, appliedspeed =self.speedmap.speedToFDC(speed)
-            self.currSpeed=appliedspeed
+            self.currSpeed=-appliedspeed if speed < 0 else appliedspeed
             self.log(ltype='phys', setting='speed', newval=self.currSpeed)
             self.frequency(fr)
             self.DC(-dc if speed < 0 else dc)
@@ -236,14 +236,14 @@ class motor(logger.logger):
                      'expectchange':0, 'actualchange':0}
 
             self.targSpeed=0
-
+        clampedspeed=self.speedmap.speedClamp(speed)
         if self.targSpeed==0:             # just set speed to (hopefully!) something near the right value.
-            self.speed(speed)
-            self.targSpeed=speed
+            self.speed(clampedspeed)
+            self.targSpeed=clampedspeed
         else:                             # already running - apply change in target speed to actual speed
-            speedchange=speed-self.targSpeed
+            speedchange=clampedspeed-self.targSpeed
             self.speed(self.currSpeed+speedchange)
-            self.targSpeed=speed
+            self.targSpeed=clampedspeed
         return self.targSpeed
 
     def addTicker(self, tickgen, tickID, ticktick, priority):
