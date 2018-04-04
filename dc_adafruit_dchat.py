@@ -132,4 +132,5 @@ class dc_m_hat():
         self.DC(0)
 
     def odef(self):
-        return {'driver': type(self).__name__, 'motorno': self.motorno, 'invert': self.isinverted}
+        return {'className': type(self).__name__, 'motorno': self.motorno, 'invert': self.isinverted,
+                'range':RANGE, 'frequency':self.frequency}

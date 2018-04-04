@@ -88,7 +88,7 @@ class logger():
                     logf.write('\n')
 
     def odef(self):
-        return {'name':self.name}
+        return {'name':self.name, 'className': type(self).__name__}
 
     def __repr__(self):
         return '%s(**%s)' % (type(self).__name__, str(self.odef()))

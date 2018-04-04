@@ -72,3 +72,6 @@ class PIDfeedback():
         self.errorprev  = errornow
         self.timeprev   = timenow
         return self.Pfact*errornow + self.Ifact*self.errortotal + self.Dfact*slope
+
+    def odef(self):
+        return {'className': type(self).__name__, 'Pfact': self.Pfact, 'Ifact': self.Ifact, 'Dfact': self.Dfact}

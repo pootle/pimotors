@@ -125,4 +125,5 @@ class dc_h_bridge():
         
         #TODO - incomplete
         """
-        return {'driver': type(self).__name__, 'pinf': self.pinf, 'pinb': self.pinb, 'frequency': self.lastHz, 'invert': self.isinverted}
+        return {'className': type(self).__name__, 'pinf': self.pinf, 'pinb': self.pinb, 'invert': self.isinverted,
+                'frequency': self.lastHz, 'range': self.range}

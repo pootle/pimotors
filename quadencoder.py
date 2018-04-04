@@ -13,6 +13,8 @@ class quadencoder():
     
     This class cannot sense the motor's direction of rotation, so it asks the motor driver which direction the motor was last moving in
     """
+    edgespecs={'both': pigpio.EITHER_EDGE, 'rising': pigpio.RISING_EDGE, 'falling': pigpio.FALLING_EDGE}
+    
     def __init__(self, pinss, edges, pulsesperrev, parent, isforward=None, initialpos=0):
         """
         pinss       : a tuple / list / array of pins from feedback sensors.
@@ -23,16 +25,19 @@ class quadencoder():
                             (if the motor has been set to zero speed, it may not yet have stopped)
         initialpos  : sets the starting position of the motor
         """
+        assert edges in self.edgespecs, 'invalid edge spec in quadencoder constructor'
         self.piggy=parent.needservice(sname='piggy', className='pigpio.pi')
-        self.edgemode = pigpio.RISING_EDGE if edges=='rising' else pigpio.FALLING_EDGE if edges=='falling' else pigpio.EITHER_EDGE
+#        self.edgemode = pigpio.RISING_EDGE if edges=='rising' else pigpio.FALLING_EDGE if edges=='falling' else pigpio.EITHER_EDGE
+        self.edgedef=edges
+        self.pprev=pulsesperrev
         self.ticksperrev = pulsesperrev*len(pinss)
-        if self.edgemode==pigpio.EITHER_EDGE:
+        if self.edgedef=='both':
             self.ticksperrev *= 2
         if not pinss is None:
             for sp in pinss:
                 assert isinstance(sp, int) and sp>=0
                 self.piggy.set_mode(sp, pigpio.INPUT)
-            self.scb=[self.piggy.callback(pn, self.edgemode) for pn in pinss]
+            self.scb=[self.piggy.callback(pn, self.edgespecs[self.edgedef]) for pn in pinss]
         else:
             self.scb=[]
         self.lasttallytime=time.time()
@@ -82,3 +87,7 @@ class quadencoder():
             self.lasttallyread=tallyr
             self.lasttallydiff=tallydiff
             yield(self.lastmotorpos)
+
+    def odef(self):
+        return {'className': type(self).__name__, 'edges': self.edgedef, 'pinss': str(self.mss), 'pulsesperrev': self.pprev}
+        

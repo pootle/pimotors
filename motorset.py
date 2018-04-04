@@ -3,6 +3,7 @@
 import time
 import logger
 import atexit
+from collections import OrderedDict
 
 class motorset():
     """
@@ -26,11 +27,17 @@ class motorset():
         see config_h_bridge.py or config_adafruit_dc_sm_hat.py for details
         """
         self.sharedServices={}
-        self.motors={}
-        for mdef in motordefs:
-            mot=logger.makeClassInstance(parent=self, **mdef)
-            self.motors[mot.name]=mot
+        if True:
+            self.motors=OrderedDict()
+            for mdef in motordefs:
+                self.motors[mdef['name']] = logger.makeClassInstance(parent=self, **mdef)
             atexit.register(self.close)
+        else: # old code
+            self.motors={}
+            for mdef in motordefs:
+                mot=logger.makeClassInstance(parent=self, **mdef)
+                self.motors[mot.name]=mot
+                atexit.register(self.close)
 
     def needservice(self, sname, className, **servargs):
         """
@@ -127,6 +134,12 @@ class motorset():
         """
         for m in self.motors.values():
             m.ticker()
+
+    def odef(self):
+        """
+        returns a dict that allows the class to be reconstructed as well as the current state?
+        """
+        return {'motordefs': [m.odef() for m in self.motors.values()]}
 
 #######################################################################################
 # INTERNAL STUFF

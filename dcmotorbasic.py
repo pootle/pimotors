@@ -331,6 +331,12 @@ class motor(logger.logger):
         """
         x=super().odef()
         x.update({'mdrive': self.mdrive.odef(), }) #'speedtable': {'f': self.speedtabf, 'b':self.speedtabb}})
+        if not self.motorpos is None:
+            x['rotationsense']=self.motorpos.odef()
+        if not self.speedmap is None:
+            x['speedmapinfo']=self.speedmap.odef()
+        if not self.feedbackcontrol is None:
+            x['feedback']=self.feedbackcontrol.odef()
         return x
 
 class speedmapper():
@@ -370,6 +376,8 @@ class speedmapper():
         assert not ftable is None or not fbuilder is None
         assert not rtable is None or not rbuilder is None
         self.invert=invert
+        self.rbuild=rbuilder
+        self.fbuild=fbuilder
         self.speedtabf, self.minSpeedf, self.maxSpeedf = self.maketable(**fbuilder) if ftable is None else (ftable, ftable[0][0], ftable[-1][0])
         self.speedtabb, self.minSpeedb, self.maxSpeedb = self.maketable(**rbuilder) if rtable is None else (rtable, rtable[0][0], rtable[-1][0])
 
@@ -498,6 +506,15 @@ class speedmapper():
         nst.insert(0,(0,nst[1][1],0))
         return nst, nst[1][0], nst[-1][0]
 
+    def odef(self):
+        x = {'className': type(self).__name__, 'minfwdspeed': self.minSpeedf, 'maxfwdspeed': self.maxSpeedf, 
+                'minbackspeed': self.minSpeedb, 'maxbackspeed': self.maxSpeedb}
+        if not self.fbuild is None:
+            x['fbuilder']=self.fbuild
+        if not self.rbuild is None:
+            x['rbuilder']=self.rbuild
+        return x
+        
 simplespeedtable=[
 (0.0012062726176115801, 20, 0.0), 
 (0.0048250904704463205, 20, 0.00423728813559322), 
