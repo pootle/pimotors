@@ -4,6 +4,7 @@ import time
 import logger
 import atexit
 from collections import OrderedDict
+import subprocess, sys
 
 class motorset():
     """
@@ -20,28 +21,36 @@ class motorset():
     string                  : (name of motor) Only the motor identified by the name is used
     tuple, list, array...   : each entry is the name of a motor, all motors named are used
     """
-    def __init__(self, motordefs=None):
+    def __init__(self, motordefs=None, quadmonitor=None):
         """
         Sets up motors from a list of dicts, each dict defines the details of an individual motor.
+        
+        quadparams is used to start a separate process that monitors 1 or more quad encoders used for feedback control.
         
         see config_h_bridge.py or config_adafruit_dc_sm_hat.py for details
         """
         self.sharedServices={}
-        if True:
-            self.motors=OrderedDict()
+        self.motors=OrderedDict()
+        if quadmonitor is None:
+            self.quadmon=None
+        else:
+            qd={}
             for mdef in motordefs:
-                self.motors[mdef['name']] = logger.makeClassInstance(parent=self, **mdef)
-            atexit.register(self.close)
-        else: # old code
-            self.motors={}
-            for mdef in motordefs:
-                mot=logger.makeClassInstance(parent=self, **mdef)
-                self.motors[mot.name]=mot
-                atexit.register(self.close)
+                if 'rotationsense' in mdef and 'pins' in mdef['rotationsense'] and len(mdef['rotationsense']['pins'])==2:
+                    qd[mdef['name']]=mdef['rotationsense']['pins']
+            if qd:
+                print('qesetup', qd)
+                self.quadmon=logger.makeClassInstance(motorquads=qd, **quadmonitor)
+            else:
+                self.quadmon=None
+
+        for mdef in motordefs:
+            self.motors[mdef['name']] = logger.makeClassInstance(parent=self, **mdef)
+        atexit.register(self.close)
 
     def needservice(self, sname, className, **servargs):
         """
-        called by motor instantiation if it uses a single instance of something
+        called by motor instances if it uses a single instance of something
         
         sname       : the (unique) name by which we know the service - used as the key into self.sharedServices to check 
                       if we already have the service
@@ -49,7 +58,6 @@ class motorset():
         className   : the module and class needed to setup the service - see logger.makeClassInstance
         
         **servargs  : all the other params needed to make the service if it's not already there. In particular must have
-                      
         """
         if not sname in self.sharedServices:
             serv=logger.makeClassInstance(className=className, **servargs)
@@ -103,6 +111,14 @@ class motorset():
         """
         return self._listcall(mlist, 'speed', speed)
 
+    def motorFeedbackParam(self, paramdetails, mlist=None):
+        """
+        optionally sets a single feedback param and returns the current (new if set) value
+        
+        see the feedback class for details of paramdetails
+        """
+        return self._listcall(mlist, 'feedbackParam', paramdetails)
+
     def motorTargetSpeed(self, tspeed, mlist=None):
         """
         when motor feedback is available with a feedback controller, we can set a target speed.
@@ -126,6 +142,9 @@ class motorset():
             m.close()
         time.sleep(.5)
         self.motors={}
+        if not self.quadmon is None:
+            pass
+            # self.quadmon.send_signal()?
 
     def ticker(self):
         """

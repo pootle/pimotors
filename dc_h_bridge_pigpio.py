@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 """
-provides the low level driver for pwm dutycycle and frequency control using an h_bridge hooked up to a Raspberry Pi and pigpio
+provides the low level driver for pwm dutycycle and frequency control of a dc motor using an h_bridge hooked up to a Raspberry Pi using pigpio
 """
 
 class dc_h_bridge():
@@ -31,7 +31,7 @@ class dc_h_bridge():
         self.pinf=pinf
         self.pinb=pinb
         self.lastHz = None
-        self.lastdc=None
+        self.lastdc=0
         self.frequency(frequency)
         self.range=range
         self.piggy.set_PWM_range(self.pinf, range)
@@ -49,8 +49,7 @@ class dc_h_bridge():
         """ 
         if not invert is None and (invert==True) != self.isinverted:
             self.isinverted=invert==True
-            if not self.lastdc is None:
-                self.lastdc = -self.lastdc
+            self.lastdc = -self.lastdc
         return self.isinverted
 
     def maxDC(self):
@@ -71,7 +70,7 @@ class dc_h_bridge():
         """
         if self.piggy is None:
             raise ValueError('the motor has been closed')
-        if dutycycle is None or dutycycle == self.lastdc:
+        if dutycycle == self.lastdc:
             return self.lastdc
         if dutycycle < -self.range:
             dutycycle=-self.range
@@ -126,4 +125,4 @@ class dc_h_bridge():
         #TODO - incomplete
         """
         return {'className': type(self).__name__, 'pinf': self.pinf, 'pinb': self.pinb, 'invert': self.isinverted,
-                'frequency': self.lastHz, 'range': self.range}
+                'frequency': self.lastHz, 'range': self.range, 'dutycycle': self.lastdc}

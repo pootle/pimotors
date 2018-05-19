@@ -58,13 +58,14 @@ class motor(logger.logger):
         
         speedmapinfo    : optional params for making speedmappers - see speedmapper class below (or whatever other class you use)
 
-        feedback        : optional params for feedback control - optional and (for this class) only allowed if rotationsense also specified
+        feedback        : optional params for feedback control - optional and (for this class) only allowed if rotationsense or quadsenspins
+                          also specified
 
         **kwargs    : allows other arbitrary keyword parameters to be ignored / passed to the super class.
         
         self.motorforward is the last direction the motor was driven. It helps the feedback keep track of the motors position.
         Even if the motor speed is now zero this wil show which way the motor might still be moving.
-       
+
         """
         super().__init__(createlogmsg=False, **kwargs)
         self.tickacts=[] # a list of all the things that need to happen each tick - see addTicker below
@@ -73,12 +74,12 @@ class motor(logger.logger):
             self.motorpos=None
             self.postick=None
         else:
-            self.motorpos=logger.makeClassInstance(parent=self, isforward=self.isforward, **rotationsense)
+            self.motorpos=logger.makeClassInstance(parent=self, **rotationsense)
             self.postick=iter(self.motorpos)
         self.motorforward=True
         self.speedmap=None if speedmapinfo is None else logger.makeClassInstance(invert=self.mdrive.invert(None), **speedmapinfo)
         self.currSpeed=0
-        self.feedbackcontrol=None if feedback is None or self.postick is None else logger.makeClassInstance(timenow=time.time(), **feedback)
+        self.feedbackcontrol=None if feedback is None or (self.postick is None and self.fastpos is None) else logger.makeClassInstance(timenow=time.time(), **feedback)
         self.targSpeed=None
         self.longactfunc=None
         self.logCreate()
@@ -89,14 +90,21 @@ class motor(logger.logger):
 
     def logCreate(self):
         if self.motorpos is None:
-            posmsg='no position sensing'
+            if self.fastpos is None:
+                posmsg='no position sensing'
+            else:
+                posmsg='position sensing with' + type(self.fastpos).__name__
         else:
             posmsg='position sensing with a' + type(self.motorpos).__name__
         if self.speedmap is None:
             speedmsg='no speed mapping'
         else:
             speedmsg='speed mapping using a' + type(self.speedmap).__name__
-        self.log(ltype='life', otype=type(self).__name__, lifemsg='created motor with %s and %s.' % (posmsg, speedmsg))
+        if len(self.tickacts)==0:
+            tamsg='no tickacts set'
+        else:
+            tamsg='%d tickacts set' % len(self.tickacts)
+        self.log(ltype='life', otype=type(self).__name__, lifemsg='created motor with %s, %s and %s.' % (posmsg, speedmsg, tamsg))
 
     def logClose(self):
         self.log(ltype='life', otype=type(self).__name__, lifemsg='motor closed')
@@ -118,14 +126,17 @@ class motor(logger.logger):
         """
         If the motor has a sensor, returns our most recent view of the position, otherwise returns None (i.e not known)
         """
-        return None if self.motorpos is None else self.motorpos.lastmotorpos
+        return self.motorpos.lastmotorpos if not self.motorpos is None else None if self.fastpos is None else self.fastpos.quadpos(self.name)
 
     def lastRPM(self):
         """
         returns the most recent known actual rpm of the motor if the motor has an appropriate sensor (else None)
         """
         if self.motorpos is None or self.motorpos.lasttallyinterval == 0:
-            return None
+            if self.fastpos is None:
+                return None
+            else:
+                return 42 # TODO - how do we track speed now?
         return 60*(self.motorpos.lastmotorpos-self.motorpos.prevmotorpos)/self.motorpos.lasttallyinterval
 
     def invert(self, invert):
@@ -219,6 +230,18 @@ class motor(logger.logger):
             self.DC(-dc if speed < 0 else dc)
         return self.currSpeed
 
+    def feedbackParam(self, fbp):
+        """
+        returns and optinally sets a single feedback param
+        
+        fbp: a 2-tuple:
+             first entry  : 'P', 'I' or 'D'
+             second entry : None (to just return the value) or a number (to set and return the accepted value)
+        """
+        if self.feedbackcontrol is None:
+            return None
+        return self.feedbackcontrol.onefact(*fbp)
+
     def targetSpeed(self, speed):
         """
         sets a target speed for the motor. This attempts to accurately maintain the motor's speed and count of revolutions.
@@ -234,7 +257,6 @@ class motor(logger.logger):
             self.fbtrace={'motor': self.name, 'ltype': 'feedbacktrace', 'runid':time.time(), 'Pf':facts[0], 'If':facts[1], 'Df':facts[2],
                      'tstamp':0, 'targetSpeed':0, 'speed':0, 'tallyinterval':0, 'motorpos':0, 'error':0, 'adjust':0,
                      'expectchange':0, 'actualchange':0}
-
             self.targSpeed=0
         clampedspeed=self.speedmap.speedClamp(speed)
         if self.targSpeed==0:             # just set speed to (hopefully!) something near the right value.
@@ -244,6 +266,7 @@ class motor(logger.logger):
             speedchange=clampedspeed-self.targSpeed
             self.speed(self.currSpeed+speedchange)
             self.targSpeed=clampedspeed
+        self.log(ltype='logi', setting='targetSpeed', newval=self.targSpeed)
         return self.targSpeed
 
     def addTicker(self, tickgen, tickID, ticktick, priority):
@@ -283,11 +306,19 @@ class motor(logger.logger):
         else:
             #we reached the end
             self.tickacts.append(ta)
+        self.log(ltype='life', otype=type(self).__name__, lifemsg='added ticker %s at priority %d' % (str(tickgen), priority))
 
     def ticker(self):
         """
         called as a regular tick (typically 5 - 50 per second) from some higher place, this updates sensor info (if available) and
-        invokes any long term (e.g. multiple tick) operations.
+        invokes any long term (e.g. feedback, testing which run over multiple ticks) operations.
+        
+        performance notes:
+            original version, all motors stopped cpu load (pi zero) 14 - 15%
+                            1 motor running  79 - 80%
+                            making iter just return makes no noticeable difference!
+                            changing tick time to .2 sec (double) makes no difference!
+                            turns out it was largely the python code in pigpio supporting tally reads - 
         """
         if not self.postick is None:
             posnow=next(self.postick)
@@ -330,13 +361,17 @@ class motor(logger.logger):
         This should return the info needed to recreate an identical motor
         """
         x=super().odef()
-        x.update({'mdrive': self.mdrive.odef(), }) #'speedtable': {'f': self.speedtabf, 'b':self.speedtabb}})
+        x.update({'mdrive': self.mdrive.odef(), 'colid': x['name']})
+        x['mdrive']['colid']=x['name']
         if not self.motorpos is None:
             x['rotationsense']=self.motorpos.odef()
+            x['rotationsense']['colid']=x['colid']
         if not self.speedmap is None:
             x['speedmapinfo']=self.speedmap.odef()
+            x['speedmapinfo']['colid']=x['colid']
         if not self.feedbackcontrol is None:
             x['feedback']=self.feedbackcontrol.odef()
+            x['feedback']['colid']=x['colid']
         return x
 
 class speedmapper():
@@ -538,4 +573,3 @@ simplespeedtable=[
 (0.9541616405307599, 80, 0.7669491525423728), 
 (0.9758745476477684, 80, 0.8728813559322034), 
 (1.0, 80, 1.0)]
-

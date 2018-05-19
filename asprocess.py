@@ -19,7 +19,7 @@ the new process and returns the result.
 
 Calls with no return objects will return immediately - they do not wait for the remote end.
 
-There is no capability for callbacks or other notifications from new process in this version.
+There is a very simple 1-of mechanism for notifications back.
 """
 from multiprocessing import Pipe, Process
 import select
@@ -28,9 +28,9 @@ import os, sys, traceback
 import logger
 import time
 
-def classrunner(wrappedClassName, ticktime, procend, kwacktimeout=None, timeoutfunction=None, **kwargs):
+def classrunner(wrappedClassName, ticktime, procend, kwacktimeout=None, timeoutfunction=None, monitortime=None, **kwargs):
     """
-    This function is the target for a thread. It runs the wrapped class with a ticker function.
+    This function is the target for a new process. It runs the wrapped class,calling method ticker every ticktime.
     
     wrappedClassName : hierarchic name of target class - see logger.makeClassInstance for details.
     
@@ -43,76 +43,129 @@ def classrunner(wrappedClassName, ticktime, procend, kwacktimeout=None, timeoutf
                         else inactivity period that triggers call to wrapped  class function
 
     timeoutfunction  : name of the member function to call if inactivity timeout
+
+    monitortime      : time in seconds at which we will report process performance stats
     
     kwargs           : dict with keyword args to instantiate the class
     
     """
+    def sendback(tupleish):
+#        print('sending from asprocess', tupleish[0], tupleish[2])
+        procend.send(tupleish)
+
     ci=logger.makeClassInstance(wrappedClassName, **kwargs)
-    procend.send(('OK',type(ci).__name__, -1))
-    waittime=0
+    print("classrunner using", type(ci).__name__)
+    sendback(('OK',type(ci).__name__, -2))
+    waittime=0                      # the time spent waiting in select
+    msgtime=0                       # the time spent processing messages
+    tickertime=0                    # the time spent in the tick handler
     cpustart=time.process_time()
-    clockstart=time.time()
-    lastincoming=clockstart
+    clockstart=time.perf_counter()
+    lastincoming=clockstart         # last time we got a message = used for the keep awake timout
     nexttime=clockstart+ticktime
+    if not monitortime is None:
+        assert isinstance(monitortime, (float, int)) and .5 <= monitortime < 61
+        intvlwaitstart=0
+        intvlcpustart=cpustart
+        intvlclockstart=clockstart
+        intvlnexttime=intvlclockstart+monitortime
+        intvltickstart=0
+        intvlmsgtime=0
+        intvltickertime=0
+        intvltickerticks=[]
     running=True
     tickcount=0
     print('using timeout %3.1f to call %s, tick is %3.2f' % (0 if kwacktimeout is None else kwacktimeout, str(timeoutfunction), ticktime))
+    loopstartat=time.perf_counter()
+    trackdelays=[]
+    trackselectcalls=0
+    tracktickercalls=0
     while running:
-        delay=nexttime-time.time()
-        while delay>0:
-            pstart=time.time()
-#            if tickcount < 50:
-#                print('delay is %2.2f' % delay)
+        delay=nexttime-loopstartat
+        trackdelays.append(delay)
+        if delay>0:
             r,w,e=select.select([procend],[],[], delay)
-            tnow=time.time()
-            waittime+=(tnow-pstart)
+            trackselectcalls += 1
+            tnow=time.perf_counter()
+            sleeptime=tnow-loopstartat
+            waittime+=sleeptime
             if r:
                 lastincoming=tnow
                 mname, sync, rid, kwargs = procend.recv()
-#                print('reseting lastincoming for', sync, mname)
-                if mname is None:
-                    if sync=='k':
-                        pass # trivial no-op just to reset the keep awake timer
-                    if sync=='x':
-                        procend.send(('OK',
-                            {   'elapsed' : time.time()-clockstart,
-                                'cputime' : time.process_time()-cpustart,
-                                'idletime': waittime,
-                                'ticks'   : tickcount},
-                            rid))
-                    elif sync=='e':
-                        running=False
+                if sync=='k':  # trivial no-op used to reset keep awake timer for example
+                    pass
+                elif sync=='x': # send stats on total process run time
+                    sendback(('OK',
+                        {   'elapsed' : time.perf_counter()-clockstart,
+                            'cputime' : time.process_time()-cpustart,
+                            'idletime': waittime,
+                            'ticks'   : tickcount,
+                            'rid'     : rid},
+                        rid))
+                elif sync=='e':
+                    running=False
                 else:
                     try:
                         f=getattr(ci, mname)
                     except AttributeError:
-                        procend.send(('NoMethod', '>'+str(mname)+'>', rid))
+                        sendback(('NoMethod', '>'+str(mname)+'>', rid))
                         f=None
                     if not f is None:
-                        if sync in ('s', 'e', 'a'):
+                        if sync in ('s', 'a'):
                             try:
                                 resp=f(**kwargs)
                                 if sync=='s':
-                                    procend.send(('OK', resp, rid))
+                                    sendback(('OK', resp, rid))
                             except:
                                 exc_type, exc_value, exc_traceback = sys.exc_info()
-                                procend.send(('MethodException', 
+                                sendback(('MethodException', 
                                     str(exc_type) + '\n' + str(exc_value) + '\n' + ''.join(traceback.format_tb(exc_traceback)), rid))
 #                                raise
-                            if sync == 'e':
-                                running=False
                         else:
-                            x=17/0
-            delay=nexttime-time.time()
+                            sendback(('CommandException', sync, rid))
+                loopstartat=time.perf_counter()
+                msgtime += (loopstartat-tnow)
+            else:
+                loopstartat=time.perf_counter()
         else:
-            if not kwacktimeout is None and time.time()>(lastincoming+kwacktimeout):
-                tmeth=getattr(ci, timeoutfunction)
-#                print('timeout calls', tmeth)
-                tmeth()
-                lastincoming=time.time()+3
+            tracktickercalls+=1
             ci.ticker()
+            tnow=time.perf_counter()
+            thistick=tnow-loopstartat
+            tickertime += tnow-loopstartat
+            if not kwacktimeout is None and tnow>(lastincoming+kwacktimeout):
+                tmeth=getattr(ci, timeoutfunction)
+                tmeth()
+                lastincoming=tnow+3
+            if not monitortime is None:
+                if False:
+#                if tnow > intvlnexttime:
+                    print('select called %d times, ticker called %d times' % (trackselectcalls, tracktickercalls))
+                    print(', '.join(['%4.3f' % x for x in trackdelays]))
+                    trackselectcalls=0
+                    tracktickercalls=0
+                    trackdelays.clear()
+                    proctime=time.process_time()
+                    sendback(('OK',
+                        {   'tstamp'    : tnow,
+                            'interval'  : tnow-intvlclockstart,
+                            'cputime'   : proctime-intvlcpustart,
+                            'idletime'  : waittime-intvlwaitstart,
+                            'ticks'     : tickcount-intvltickstart,
+                            'msgtime'   : msgtime-intvlmsgtime,
+                            'tickertime': tickertime-intvltickertime,
+                            'rid'       : -1},
+                        -1))
+                    intvlclockstart=tnow
+                    intvlcpustart=proctime
+                    intvlwaitstart=waittime
+                    intvltickstart=tickcount
+                    intvlnexttime+=monitortime
+                    intvltickertime=tickertime
+                    intvlmsgtime=msgtime
             tickcount+=1
             nexttime+=ticktime
+            loopstartat=time.perf_counter()
 
 class runAsProcess(logger.logger):
     """
@@ -141,7 +194,7 @@ class runAsProcess(logger.logger):
         self.msgOutCount = 0
         self.proc.start()
         self.laststatus, self.startinf, self.lastoutid = self.stubendpipe.recv()
-        self.running=self.laststatus=='OK' and self.lastoutid==-1
+        self.running=self.laststatus=='OK' and self.lastoutid==-2
         if 'name' in locallogging:
             super().__init__(**locallogging)
         else:
@@ -165,14 +218,19 @@ class runAsProcess(logger.logger):
         sync    : 's' to run the method synchronously and return and results to the caller
                   'a' to run method asynchronously and return immediately
                   'e' to shut down the remote process by exiting the control loop and thus the process
-                      the closedown method of the class can be run if 'method' not None (plus any kwargs...)    
+                      the closedown method of the class can be run if 'method' not None (plus any kwargs...)
+                  'k' no-op used to provide keep awake ticks
+                  'x' return process stats (since process start
         """
         if self.running:
             self.stubendpipe.send((method, sync, self.msgOutCount, kwargs))
             rid=self.msgOutCount
             self.msgOutCount+=1
-            if sync=='s':
+            if sync=='s' or sync =='x':
                 instatus, inresponse, outid = self.stubendpipe.recv()
+                while outid==-1:
+                    self.handleprocstats(inresponse)
+                    instatus, inresponse, outid = self.stubendpipe.recv()
                 if outid==rid:
                     if instatus=='OK':
                         return inresponse
@@ -181,31 +239,33 @@ class runAsProcess(logger.logger):
                         print(inresponse)
                 else:
                     print('message id mismatch, expected %d got %d' % (rid, outid))
-            elif sync=='a':
+            elif sync in ('a','k'):
                 pass
             elif sync=='e':
                 self.stubend()
             else:
                 raise ValueError('unknown sync value %s' % sync)
+            if self.stubendpipe.poll():
+                instatus, inresponse, outid = self.stubendpipe.recv()
+                if outid==-1:
+                    self.handleprocstats(inresponse)
+                else:
+                    print('unexpected message from remote class', instatus, outid, inresponse)
+                    x=17/0
         else:
             x=17/0
 
     def sendkwac(self):
-        if self.running:
-#            print('webserve sending kwac')
-            self.stubendpipe.send((None,'k',self.msgOutCount,None))
-            self.msgOutCount+=1
+        self.runOnProc(None,'k')
 
     def getProcessStats(self):
-        self.stubendpipe.send((None, 'x', self.msgOutCount, None))
-        rid=self.msgOutCount
-        self.msgOutCount+=1
-        instatus, inresponse, outid = self.stubendpipe.recv()
-        if instatus=='OK' and outid==rid:
-            return inresponse
-        else:
-            print('================', instatus, outid, rid, inresponse)
-            x=17/0
+        return self.runOnProc(None,'x')
+
+    def handleprocstats(self, statsmsg):
+        """
+        called when procstats message received - override to do something more appropriate
+        """
+        print(statsmsg)
 
     def stubend(self):
         self.proc.join(timeout=4)

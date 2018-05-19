@@ -42,7 +42,7 @@ class PIDfeedback():
 
     def factors(self, Pfact=None, Ifact=None, Dfact=None):
         """
-        set and return any of the factors
+        set and return any combination of the factors
         
         Any parameter not None will update that factor to the supplied Value.
         
@@ -55,6 +55,31 @@ class PIDfeedback():
         if not Dfact is None:
             self.Dfact=Pfact
         return self.Pfact, self.Ifact, self.Dfact
+
+    def onefact(self, factor, newvalue):
+        """
+        set and return a single factor
+        
+        factor : 'P', 'I', or 'D'
+        
+        value  : None to just return the current value, or an integer or float to set and return the new value
+        """
+        assert newvalue is None or isinstance(newvalue,(int, float, str)), 'Value is not a number'
+        value = float(newvalue) if isinstance(newvalue, str) else newvalue
+        if factor=='P':
+            if not value is None:
+                self.Pfact=value
+            return self.Pfact
+        elif factor=='I':
+            if not value is None:
+                self.Ifact=value
+            return self.Ifact
+        elif factor=='D':
+            if not value is None:
+                self.Dfact=='D'
+            return self.Dfact
+        else:
+            raise ValueError('factor should be "P", "I" or "D"; not %S' % str(factor))
 
     def ticker(self, timenow, errornow):
         """

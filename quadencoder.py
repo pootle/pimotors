@@ -15,14 +15,12 @@ class quadencoder():
     """
     edgespecs={'both': pigpio.EITHER_EDGE, 'rising': pigpio.RISING_EDGE, 'falling': pigpio.FALLING_EDGE}
     
-    def __init__(self, pinss, edges, pulsesperrev, parent, isforward=None, initialpos=0):
+    def __init__(self, pinss, edges, pulsesperrev, parent, initialpos=0):
         """
         pinss       : a tuple / list / array of pins from feedback sensors.
         edges       : 'both', 'rising', or 'falling' - specifies which edges to count
         pulseperrev : the number of pulses we expect per rev per pin (= number of rising edges - twice this number counted in 'both' edge mode
         parent      : object that provides function needservice to get pigpio shared instance 
-        isforward   : a function that returns True if the motor is / was moving forward 
-                            (if the motor has been set to zero speed, it may not yet have stopped)
         initialpos  : sets the starting position of the motor
         """
         assert edges in self.edgespecs, 'invalid edge spec in quadencoder constructor'
@@ -47,7 +45,7 @@ class quadencoder():
         self.prevmotorpos=initialpos
         self.lasttallydiff=0
         self.lasttallyinterval=0
-        self.isforwardfunc=isforward
+        self.isforwardfunc=parent.isforward
 
     def close(self):
         for i, pn in enumerate(self.mss):
