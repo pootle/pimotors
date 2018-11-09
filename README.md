@@ -5,6 +5,8 @@ Assuming your project needs a raspberry pi or similarly capable computer, but is
 
 This updated version (in May '18) uses a small C program that in turn uses pigpio to monitor simple rotary quad encoders. It can easily run 2 motors at up to 13,000 rpm with 12 count per rev encoders. CPU utilisation peaks at about 45% on a Raspberry Pi Zero and there do not appear to be any dropped edges.
 
+[This forum thread explains some of the background](https://www.raspberrypi.org/forums/viewtopic.php?t=213610).
+
 A Raspberry pi is quite fast enough to control and monitor motors running up to around 10000 rpm. This set of classes provides the basic functioanlity to do this with the following modules:
 ## driver and control modules
 * config_adafruit_dc_sm_hat.py: example config for 2 motors on an adafruit DC and stepper motor hat
